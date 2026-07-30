@@ -33,6 +33,15 @@ Schedule::command('idx:update-market-data')
     ->dailyAt('16:15')
     ->withoutOverlapping();
 
+// Keeps stock_price_histories (the raw material BacktestEngine reads) current.
+// --years=1 is enough since this only needs to catch today's new bar — the
+// upsert is keyed on (ticker, date), so re-fetching a rolling window daily
+// is safe and just fills in whatever's new since yesterday.
+Schedule::command('idx:backfill-price-history --years=1')
+    ->weekdays()
+    ->dailyAt('16:30')
+    ->withoutOverlapping();
+
 Schedule::command('idx:update-news-sentiment')
     ->hourly()
     ->withoutOverlapping();
