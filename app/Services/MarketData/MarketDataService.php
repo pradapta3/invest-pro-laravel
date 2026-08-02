@@ -163,7 +163,13 @@ class MarketDataService
      * yet — the TradingView scan effectively *is* a live, self-updating
      * IDX ticker list, so nothing needs to be imported by hand.
      *
-     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, avg_volume: int, prev_close: float, value_transaction: float}>
+     * Only carries fields TradingView can report unambiguously in
+     * real time (close/volume/vwap). vol_avg_20 and prev_close are
+     * intentionally NOT sourced from here — see scanIndonesiaExchange()
+     * docblock — UpdateMarketData's daily Yahoo-based EOD refresh owns
+     * both instead.
+     *
+     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, value_transaction: float}>
      */
     public function realtimeScan(): array
     {
@@ -173,11 +179,11 @@ class MarketDataService
         foreach ($rows as $row) {
             $d = $row['d'] ?? [];
 
-            if (count($d) < 8) {
+            if (count($d) < 6) {
                 continue;
             }
 
-            [$symbol, $description, $sector, $close, $volume, $vwap, $avgVolume, $changeAbs] = $d;
+            [$symbol, $description, $sector, $close, $volume, $vwap] = $d;
 
             $close = (float) $close;
             $volume = (int) $volume;
@@ -189,9 +195,6 @@ class MarketDataService
                 'close' => $close,
                 'volume' => $volume,
                 'vwap' => $vwap !== null ? (float) $vwap : $close,
-                'avg_volume' => (int) $avgVolume,
-                // Close = Prev + Change  =>  Prev = Close - Change.
-                'prev_close' => $close - (float) $changeAbs,
                 'value_transaction' => $close * $volume,
             ];
         }

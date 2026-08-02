@@ -17,12 +17,29 @@ final readonly class BacktestTrade
         public float $exitPrice,
         public string $exitReason,
         public int $holdingDays,
+        public float $buyFeeRate = 0.0,
+        public float $sellFeeRate = 0.0,
     ) {
     }
 
+    /**
+     * Net of buy/sell fees (see config/trading.php) — same convention as
+     * PortfolioService and TechnicalAnalysisService::backtestMa20Strategy():
+     * cost to enter is entryPrice * (1 + buyFeeRate), proceeds on exit are
+     * exitPrice * (1 - sellFeeRate). Without this, a backtest could report
+     * a "winning" trade that would have been a net loss after real fees.
+     */
     public function returnPct(): float
     {
-        return $this->entryPrice > 0 ? (($this->exitPrice - $this->entryPrice) / $this->entryPrice) * 100 : 0.0;
+        $netEntryCost = $this->entryPrice * (1 + $this->buyFeeRate);
+
+        if ($netEntryCost <= 0) {
+            return 0.0;
+        }
+
+        $netExitProceeds = $this->exitPrice * (1 - $this->sellFeeRate);
+
+        return (($netExitProceeds - $netEntryCost) / $netEntryCost) * 100;
     }
 
     public function isWin(): bool

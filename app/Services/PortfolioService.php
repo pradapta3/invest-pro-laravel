@@ -70,15 +70,20 @@ class PortfolioService
 
             $position = UserPortfolio::query()->lockForUpdate()->where('user_id', $userId)->where('ticker', $ticker)->first();
 
+            // avg_price includes the buy fee, not just the raw price — otherwise
+            // a round-trip buy-then-sell at an unchanged price would show as
+            // break-even when it actually cost the fee twice. sell() already
+            // subtracts the sell fee on top, so this is the only place the buy
+            // fee needs to be folded in.
             if ($position) {
                 $newLots = $position->lots + $lots;
-                $newAvgPrice = ((($position->lots * $lotSize) * (float) $position->avg_price) + $value) / ($newLots * $lotSize);
+                $newAvgPrice = ((($position->lots * $lotSize) * (float) $position->avg_price) + $value + $fee) / ($newLots * $lotSize);
                 $position->update(['avg_price' => $newAvgPrice, 'lots' => $newLots]);
             } else {
                 $position = UserPortfolio::create([
                     'user_id' => $userId,
                     'ticker' => $ticker,
-                    'avg_price' => $price,
+                    'avg_price' => ($value + $fee) / ($lots * $lotSize),
                     'lots' => $lots,
                 ]);
             }

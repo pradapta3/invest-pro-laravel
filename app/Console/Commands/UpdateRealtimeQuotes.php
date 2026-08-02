@@ -63,9 +63,11 @@ class UpdateRealtimeQuotes extends Command
                 'close_price' => $row['close'],
                 'volume' => $row['volume'],
                 'vwap' => $row['vwap'],
-                'vol_avg_20' => $row['avg_volume'],
                 'value_transaction' => $row['value_transaction'],
-                'prev_close' => $row['prev_close'],
+                // vol_avg_20 and prev_close are intentionally left alone here —
+                // idx:update-market-data (daily, from Yahoo's own OHLCV history)
+                // is the only accurate source for both. See MarketDataService::
+                // realtimeScan() docblock for why this used to be wrong.
             ]);
         }
 

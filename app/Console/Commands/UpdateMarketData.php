@@ -77,6 +77,7 @@ class UpdateMarketData extends Command
                     'rsi_14' => $this->ta->rsi($closes),
                     'stoch_k' => $stoch['k'],
                     'macd_hist' => $macd['hist'],
+                    'vol_avg_20' => $this->ta->sma($volumes, 20),
                     'is_breakout' => $isBreakout,
                     'history_json' => array_slice($closes, -60),
                 ],

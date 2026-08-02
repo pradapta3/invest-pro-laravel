@@ -153,6 +153,8 @@ class BacktestEngine
                 exitPrice: $exitPrice,
                 exitReason: $reason,
                 holdingDays: $exitIndex - $entryIndex,
+                buyFeeRate: (float) config('trading.fees.buy_rate'),
+                sellFeeRate: (float) config('trading.fees.sell_rate'),
             ));
 
             $cooldownUntil = $exitIndex;

@@ -14,9 +14,18 @@ class TradingViewScannerClient
 {
     /**
      * @return array<int, array{d: array<int, mixed>}> raw rows, each `d`
-     *  ordered as [ticker, description, sector, close, volume, vwap, average_volume_30d, change].
+     *  ordered as [ticker, description, sector, close, volume, vwap].
      *  description/sector let callers auto-register tickers stock_refs has
      *  never seen before, instead of requiring a manual CSV/LQ45 import.
+     *
+     *  Deliberately does NOT request average_volume_*_calc or change here
+     *  anymore — average_volume_30d_calc was previously being written
+     *  straight into the app's "20-day" volume average field (wrong
+     *  window), and `change` from this endpoint is a *percentage*, not an
+     *  absolute Rupiah delta, which was being subtracted from `close` as
+     *  if it were one. Both vol_avg_20 and prev_close are now sourced
+     *  once a day from Yahoo's own OHLCV history in UpdateMarketData
+     *  instead, which is unambiguous.
      */
     public function scanIndonesiaExchange(): array
     {
@@ -27,7 +36,7 @@ class TradingViewScannerClient
             ],
             'options' => ['lang' => 'id'],
             'symbols' => ['query' => ['types' => []], 'tickers' => []],
-            'columns' => ['name', 'description', 'sector', 'close', 'volume', 'VWAP', 'average_volume_30d_calc', 'change'],
+            'columns' => ['name', 'description', 'sector', 'close', 'volume', 'VWAP'],
             'sort' => ['sortBy' => 'volume', 'sortOrder' => 'desc'],
             // IDX lists ~850-900 active symbols; 1200 leaves headroom for growth.
             'range' => [0, 1200],
