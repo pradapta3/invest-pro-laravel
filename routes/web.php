@@ -17,6 +17,7 @@ use App\Http\Controllers\SeasonalityController;
 use App\Http\Controllers\SimilarityController;
 use App\Http\Controllers\StockDetailController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\TelegramLinkController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\TitanScanController;
 use App\Http\Controllers\ToolsController;
@@ -59,21 +60,34 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
     Route::get('/tools', [ToolsController::class, 'index'])->name('tools.index');
     Route::get('/backtest', [BacktestController::class, 'index'])->name('backtest.index');
 
+    Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->name('telegram.link');
+    Route::post('/telegram/link', [TelegramLinkController::class, 'generate'])->name('telegram.link.generate');
+    Route::delete('/telegram/link', [TelegramLinkController::class, 'destroy'])->name('telegram.link.destroy');
+
     // Moved here from routes/api.php: these are same-origin fetch() calls
     // from the Blade views that need the web session (to know *which*
-    // user's portfolio/AI-analyze/broadcast request this is) — the `api`
+    // user's portfolio/AI-analyze/signal request this is) — the `api`
     // middleware group doesn't start a session at all, so session-based
     // auth silently couldn't have worked there once the app went
     // multi-user. Route *names* are unchanged so no Blade/JS needed updating.
     Route::prefix('api')->group(function () {
-        Route::post('/stocks/analyze', StockAnalysisController::class)->name('api.stocks.analyze');
+        // Each call hits the Gemini API (a real cost); throttled per user/IP
+        // so a scripted loop can't run up the bill.
+        Route::post('/stocks/analyze', StockAnalysisController::class)
+            ->name('api.stocks.analyze')
+            ->middleware('throttle:20,1');
         Route::get('/portfolio/chart', PortfolioChartController::class)->name('api.portfolio.chart');
+
+        // Sends to the caller's own linked Telegram chat (see
+        // TelegramLinkController) — a per-user action, so this belongs
+        // with the rest of the subscriber routes, not admin. The shared-
+        // channel digest broadcast below stays admin-only.
         Route::post('/telegram/broadcast-signal', [TelegramBroadcastController::class, 'signal'])
-            ->name('api.telegram.broadcast-signal');
+            ->name('api.telegram.broadcast-signal')
+            ->middleware('throttle:20,1');
         Route::post('/telegram/broadcast-titan', [TelegramBroadcastController::class, 'titanSignal'])
-            ->name('api.telegram.broadcast-titan');
-        Route::post('/telegram/broadcast-digest', [TelegramBroadcastController::class, 'digest'])
-            ->name('api.telegram.broadcast-digest');
+            ->name('api.telegram.broadcast-titan')
+            ->middleware('throttle:20,1');
     });
 });
 
@@ -98,9 +112,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Data-refresh jobs affect the whole shared dataset (every subscriber
     // sees the same stock_prices/stock_refs), not a per-user resource, so
-    // triggering them is an operator action, not a customer one.
+    // triggering them is an operator action, not a customer one. Same
+    // reasoning applies to the digest broadcast below — it posts to the
+    // site's own shared channel (TELEGRAM_BROADCAST_CHAT_IDS), unlike
+    // broadcast-signal/-titan (see the subscriber group above) which now
+    // go to the calling user's own linked chat instead.
     Route::prefix('api')->group(function () {
         Route::get('/data-updates/jobs', [DataUpdateController::class, 'jobs'])->name('api.data-updates.jobs');
         Route::post('/data-updates/{key}', DataUpdateController::class)->name('api.data-updates.run');
+
+        Route::post('/telegram/broadcast-digest', [TelegramBroadcastController::class, 'digest'])
+            ->name('api.telegram.broadcast-digest');
     });
 });

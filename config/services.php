@@ -34,6 +34,10 @@ return [
             'trim',
             explode(',', (string) env('TELEGRAM_BROADCAST_CHAT_IDS', ''))
         )),
+        // Without the @ prefix, e.g. "IdxInvestBot" — used only to build the
+        // t.me/<username>?start=... one-tap link on the "Pengaturan
+        // Telegram" page. The /LINK <code> flow works without this too.
+        'bot_username' => env('TELEGRAM_BOT_USERNAME'),
     ],
 
     /*

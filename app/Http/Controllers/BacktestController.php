@@ -21,8 +21,8 @@ class BacktestController extends Controller
     public function index(Request $request): View
     {
         $strategy = $request->string('strategy', 'bsjp')->toString();
-        $from = Carbon::parse($request->string('from', now()->subYears(2)->toDateString())->toString());
-        $to = Carbon::parse($request->string('to', now()->toDateString())->toString());
+        $from = $this->parseDateOrDefault($request->string('from')->toString(), now()->subYears(2));
+        $to = $this->parseDateOrDefault($request->string('to')->toString(), now());
         $walkForward = $request->boolean('walk_forward');
 
         $result = null;
@@ -53,5 +53,23 @@ class BacktestController extends Controller
             'walkForwardReport' => $walkForwardReport,
             'error' => $error,
         ]);
+    }
+
+    /**
+     * A malformed ?from=/&to= (Carbon::parse throws InvalidArgumentException
+     * on unparsable input) used to 500 the whole page before this ever
+     * reached BacktestEngine's own try/catch.
+     */
+    private function parseDateOrDefault(string $value, Carbon $default): Carbon
+    {
+        if ($value === '') {
+            return $default;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (InvalidArgumentException) {
+            return $default;
+        }
     }
 }

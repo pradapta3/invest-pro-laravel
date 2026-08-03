@@ -8,7 +8,11 @@
                 this.price = e.detail.price;
                 this.trend = e.detail.trend;
                 this.forecast = e.detail.forecast;
-                this.analysis = window.marked ? marked.parse(e.detail.ai_analysis) : e.detail.ai_analysis;
+                const rendered = window.marked ? marked.parse(e.detail.ai_analysis) : e.detail.ai_analysis;
+                // ai_analysis is raw text from Gemini, not something we control —
+                // must be sanitized before x-html (= innerHTML) below, since an
+                // LLM response is untrusted input just like any other.
+                this.analysis = window.DOMPurify ? DOMPurify.sanitize(rendered) : '';
                 this.open = true;
             });
         },

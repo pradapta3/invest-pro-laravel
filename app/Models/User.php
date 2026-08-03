@@ -18,11 +18,15 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'telegram_chat_id',
+        'telegram_link_code',
+        'telegram_link_code_expires_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'telegram_link_code',
     ];
 
     protected function casts(): array
@@ -34,7 +38,13 @@ class User extends Authenticatable
             // would hash it twice and lock the account out.
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'telegram_link_code_expires_at' => 'datetime',
         ];
+    }
+
+    public function hasLinkedTelegram(): bool
+    {
+        return ! empty($this->telegram_chat_id);
     }
 
     public function wallet(): HasOne

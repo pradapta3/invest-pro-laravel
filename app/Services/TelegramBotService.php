@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\StockPrice;
 use App\Models\StockRef;
+use App\Models\User;
 use App\ValueObjects\ScoreBreakdown;
 use App\ValueObjects\TitanSignal;
 use App\ValueObjects\TradingPlan;
@@ -52,6 +53,16 @@ class TelegramBotService
 
         if ($textUpper === '/HELP' || $textUpper === '/START') {
             $this->sendMessage($chatId, $this->helpMenuText());
+
+            return;
+        }
+
+        // Handles both the manual "/LINK CODE" command and Telegram's
+        // deep-link form "/START CODE" (what t.me/<bot>?start=CODE actually
+        // sends as the message text) — same one-time-code handler either way.
+        if (str_starts_with($textUpper, '/LINK') || str_starts_with($textUpper, '/START ')) {
+            $code = trim(str_replace(['/LINK', '/START'], '', $textUpper));
+            $this->handleLinkCommand($chatId, $code);
 
             return;
         }
@@ -118,6 +129,23 @@ class TelegramBotService
         }
 
         return true;
+    }
+
+    /**
+     * Send to one subscriber's own linked chat (see /LINK) instead of the
+     * shared broadcast channel — used by the per-ticker "kirim sinyal"
+     * buttons so each subscriber only sees their own requests, not
+     * everyone else's.
+     *
+     * @return array<string, bool> chat_id => success (empty if not linked yet)
+     */
+    public function sendToUser(?string $chatId, string $text, string $parseMode = 'HTML'): array
+    {
+        if ($chatId === null || $chatId === '') {
+            return [];
+        }
+
+        return [$chatId => $this->sendMessage($chatId, $text, $parseMode)];
     }
 
     /**
@@ -297,6 +325,42 @@ class TelegramBotService
         return implode("\n", $lines);
     }
 
+    /**
+     * Links this Telegram chat to whichever app user currently holds the
+     * (short-lived) code — generated from the app's "Pengaturan Telegram"
+     * page. Deliberately does NOT accept a raw chat_id from the app side;
+     * the chat_id can only ever come from Telegram itself sending us this
+     * message, so there's no way to link an account to a chat you don't
+     * control.
+     */
+    private function handleLinkCommand(string $chatId, string $code): void
+    {
+        if ($code === '') {
+            $this->sendMessage($chatId, 'Format: <code>/LINK KODE</code> — ambil kode dari halaman Pengaturan Telegram di aplikasi.');
+
+            return;
+        }
+
+        $user = User::query()
+            ->where('telegram_link_code', $code)
+            ->where('telegram_link_code_expires_at', '>', now())
+            ->first();
+
+        if ($user === null) {
+            $this->sendMessage($chatId, '❌ Kode tidak valid atau sudah kedaluwarsa. Ambil kode baru dari halaman Pengaturan Telegram.');
+
+            return;
+        }
+
+        $user->update([
+            'telegram_chat_id' => $chatId,
+            'telegram_link_code' => null,
+            'telegram_link_code_expires_at' => null,
+        ]);
+
+        $this->sendMessage($chatId, "✅ Berhasil terhubung ke akun <b>{$user->email}</b>. Sinyal yang Anda kirim dari aplikasi sekarang akan masuk ke chat ini.");
+    }
+
     private function handleProphetCommand(string $chatId, string $ticker): void
     {
         if (! preg_match('/^[A-Z]{4}$/', $ticker)) {
@@ -409,6 +473,9 @@ class TelegramBotService
     {
         return implode("\n", [
             '🤖 <b>IDX BOT PRO MENU</b>',
+            '',
+            '🔗 <b>/LINK [KODE]</b>',
+            'Hubungkan chat ini ke akun Anda (ambil kode dari halaman Pengaturan Telegram di aplikasi).',
             '',
             '🔮 <b>/PROPHET [KODE]</b>',
             'Prediksi masa depan (Math + AI).',

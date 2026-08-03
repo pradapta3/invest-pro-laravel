@@ -37,6 +37,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
@@ -89,10 +90,17 @@
                 </div>
             </div>
 
-            <button type="button" onclick="broadcastDigest(this)" title="Broadcast Top Picks"
-                    class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition">
+            @if (auth()->user()?->is_admin)
+                <button type="button" onclick="broadcastDigest(this)" title="Broadcast Top Picks"
+                        class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition">
+                    <i class="fa-brands fa-telegram"></i>
+                </button>
+            @endif
+
+            <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
+               class="inline-flex items-center justify-center w-10 h-10 rounded-lg border transition {{ auth()->user()?->hasLinkedTelegram() ? 'bg-white border-slate-200 text-sky-500 hover:bg-slate-50' : 'bg-white border-amber-300 text-amber-500 hover:bg-slate-50' }}">
                 <i class="fa-brands fa-telegram"></i>
-            </button>
+            </a>
 
             <a href="{{ route('heatmap.index') }}" title="Market Map" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-map"></i>
@@ -196,7 +204,7 @@ function broadcastDigest(btn) {
         confirmButtonText: 'Kirim',
     }).then((result) => {
         if (!result.isConfirmed) return;
-        fetch('{{ route('api.telegram.broadcast-digest') }}', {
+        fetch('{{ route('admin.api.telegram.broadcast-digest') }}', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
         })
