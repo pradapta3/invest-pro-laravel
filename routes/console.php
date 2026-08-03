@@ -28,6 +28,16 @@ Schedule::command('idx:update-realtime-quotes')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
 
+// Runs right after the realtime refresh above (registered later in the
+// same schedule:run tick, so it always sees today's just-updated
+// close_price) — checks watchlist alerts and portfolio SL/TP, notifies
+// over Telegram. See CheckPriceAlerts.
+Schedule::command('idx:check-price-alerts')
+    ->weekdays()
+    ->between('09:00', '16:00')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();
+
 Schedule::command('idx:update-market-data')
     ->weekdays()
     ->dailyAt('16:15')

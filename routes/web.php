@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HeatmapController;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PriceAlertController;
 use App\Http\Controllers\ScannerController;
 use App\Http\Controllers\SeasonalityController;
 use App\Http\Controllers\SimilarityController;
@@ -63,6 +64,10 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
     Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->name('telegram.link');
     Route::post('/telegram/link', [TelegramLinkController::class, 'generate'])->name('telegram.link.generate');
     Route::delete('/telegram/link', [TelegramLinkController::class, 'destroy'])->name('telegram.link.destroy');
+
+    Route::get('/alerts', [PriceAlertController::class, 'index'])->name('alerts.index');
+    Route::post('/alerts', [PriceAlertController::class, 'store'])->name('alerts.store');
+    Route::delete('/alerts/{alert}', [PriceAlertController::class, 'destroy'])->name('alerts.destroy');
 
     // Moved here from routes/api.php: these are same-origin fetch() calls
     // from the Blade views that need the web session (to know *which*

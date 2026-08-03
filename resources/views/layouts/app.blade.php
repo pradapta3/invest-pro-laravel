@@ -102,6 +102,10 @@
                 <i class="fa-brands fa-telegram"></i>
             </a>
 
+            <a href="{{ route('alerts.index') }}" title="Price Alert" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
+                <i class="fa-solid fa-bell"></i>
+            </a>
+
             <a href="{{ route('heatmap.index') }}" title="Market Map" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-map"></i>
             </a>

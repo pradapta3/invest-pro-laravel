@@ -16,6 +16,8 @@ class UserPortfolio extends Model
         'lots',
         'target_price',
         'stop_loss',
+        'sl_alerted_at',
+        'tp_alerted_at',
     ];
 
     protected function casts(): array
@@ -25,6 +27,8 @@ class UserPortfolio extends Model
             'lots' => 'integer',
             'target_price' => 'decimal:2',
             'stop_loss' => 'decimal:2',
+            'sl_alerted_at' => 'datetime',
+            'tp_alerted_at' => 'datetime',
         ];
     }
 

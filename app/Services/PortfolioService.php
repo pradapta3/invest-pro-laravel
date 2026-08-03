@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TransactionType;
 use App\Exceptions\InsufficientFundsException;
 use App\Exceptions\InsufficientLotsException;
+use App\Models\StockPrice;
 use App\Models\StockRef;
 use App\Models\UserHistory;
 use App\Models\UserPortfolio;
@@ -29,8 +30,10 @@ use Illuminate\Support\Facades\DB;
  */
 class PortfolioService
 {
-    public function __construct(private readonly MarketDataService $marketData)
-    {
+    public function __construct(
+        private readonly MarketDataService $marketData,
+        private readonly TechnicalAnalysisService $ta,
+    ) {
     }
 
     public function wallet(int $userId): UserWallet
@@ -70,6 +73,14 @@ class PortfolioService
 
             $position = UserPortfolio::query()->lockForUpdate()->where('user_id', $userId)->where('ticker', $ticker)->first();
 
+            // Captured here (not just displayed live) so idx:check-price-alerts
+            // has a fixed SL/TP to compare against instead of a plan that
+            // silently drifts with today's pivot points every time it's
+            // recomputed. Best-effort — a missing quote shouldn't block the
+            // trade, it just means no auto-alert for this position.
+            $stockPrice = StockPrice::query()->find($ticker);
+            $plan = $stockPrice ? $this->ta->buildTradingPlan($stockPrice, 'swing') : null;
+
             // avg_price includes the buy fee, not just the raw price — otherwise
             // a round-trip buy-then-sell at an unchanged price would show as
             // break-even when it actually cost the fee twice. sell() already
@@ -78,13 +89,24 @@ class PortfolioService
             if ($position) {
                 $newLots = $position->lots + $lots;
                 $newAvgPrice = ((($position->lots * $lotSize) * (float) $position->avg_price) + $value + $fee) / ($newLots * $lotSize);
-                $position->update(['avg_price' => $newAvgPrice, 'lots' => $newLots]);
+                $position->update([
+                    'avg_price' => $newAvgPrice,
+                    'lots' => $newLots,
+                    'target_price' => $plan?->takeProfit,
+                    'stop_loss' => $plan?->stopLoss,
+                    // A top-up changes the cost basis, so treat SL/TP alerting
+                    // as fresh again rather than carrying over stale flags.
+                    'sl_alerted_at' => null,
+                    'tp_alerted_at' => null,
+                ]);
             } else {
                 $position = UserPortfolio::create([
                     'user_id' => $userId,
                     'ticker' => $ticker,
                     'avg_price' => ($value + $fee) / ($lots * $lotSize),
                     'lots' => $lots,
+                    'target_price' => $plan?->takeProfit,
+                    'stop_loss' => $plan?->stopLoss,
                 ]);
             }
 

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\StockPrice;
 use App\Models\StockRef;
 use App\Models\User;
+use App\Models\UserPortfolio;
+use App\Models\UserPriceAlert;
 use App\ValueObjects\ScoreBreakdown;
 use App\ValueObjects\TitanSignal;
 use App\ValueObjects\TradingPlan;
@@ -320,6 +322,71 @@ class TelegramBotService
             '🛑 STOP: '.number_format($signal->plan->stopLoss),
             '--------------------------------',
             '🔍 <a href="'.route('stocks.show', $signal->price->ticker).'">Check Chart</a>',
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * idx:check-price-alerts — a watchlist target price the user set has
+     * been crossed.
+     */
+    public function buildPriceAlertMessage(UserPriceAlert $alert, StockPrice $price): string
+    {
+        $t = $alert->stockRef?->cleanTicker() ?? str_replace('.JK', '', $alert->ticker);
+        $dirLabel = $alert->direction === 'above' ? 'naik ke atas' : 'turun ke bawah';
+
+        $lines = [
+            "🔔 <b>PRICE ALERT: {$t}</b>",
+            '--------------------------------',
+            'Harga sekarang: Rp '.number_format((float) $price->close_price),
+            "Target Anda ({$dirLabel}): Rp ".number_format((float) $alert->target_price),
+            '--------------------------------',
+            '🔍 <a href="'.route('stocks.show', $alert->ticker).'">Lihat Detail</a>',
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * idx:check-price-alerts — an open position's price fell to/through
+     * the stop-loss captured at purchase time (PortfolioService::buy()).
+     */
+    public function buildStopLossAlertMessage(UserPortfolio $position, StockPrice $price): string
+    {
+        $t = $position->stockRef?->cleanTicker() ?? str_replace('.JK', '', $position->ticker);
+
+        $lines = [
+            "🛑 <b>STOP LOSS TERSENTUH: {$t}</b>",
+            '--------------------------------',
+            'Harga sekarang: Rp '.number_format((float) $price->close_price),
+            'Level Stop Loss: Rp '.number_format((float) $position->stop_loss),
+            'Avg Beli Anda: Rp '.number_format((float) $position->avg_price),
+            '--------------------------------',
+            '⚠️ Pertimbangkan review posisi Anda.',
+            '🔍 <a href="'.route('portfolio.index').'">Lihat Portofolio</a>',
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * idx:check-price-alerts — an open position's price reached the take-
+     * profit captured at purchase time (PortfolioService::buy()).
+     */
+    public function buildTakeProfitAlertMessage(UserPortfolio $position, StockPrice $price): string
+    {
+        $t = $position->stockRef?->cleanTicker() ?? str_replace('.JK', '', $position->ticker);
+
+        $lines = [
+            "🎯 <b>TARGET PROFIT TERCAPAI: {$t}</b>",
+            '--------------------------------',
+            'Harga sekarang: Rp '.number_format((float) $price->close_price),
+            'Target Profit: Rp '.number_format((float) $position->target_price),
+            'Avg Beli Anda: Rp '.number_format((float) $position->avg_price),
+            '--------------------------------',
+            '✅ Pertimbangkan take profit sebagian/semua.',
+            '🔍 <a href="'.route('portfolio.index').'">Lihat Portofolio</a>',
         ];
 
         return implode("\n", $lines);

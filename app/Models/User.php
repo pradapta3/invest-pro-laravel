@@ -62,6 +62,11 @@ class User extends Authenticatable
         return $this->hasMany(UserHistory::class);
     }
 
+    public function priceAlerts(): HasMany
+    {
+        return $this->hasMany(UserPriceAlert::class);
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
