@@ -10,16 +10,34 @@
     @csrf
 
     <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Email</label>
-        <input type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username"
-               class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @error('email') border-red-400 @enderror">
+        <label for="email" class="block text-xs font-bold text-slate-500 mb-1">Email</label>
+        {{-- text-base below sm: iOS Safari zooms the page in when a focused input
+             is under 16px, and never zooms back out. --}}
+        <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username"
+               inputmode="email"
+               class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base sm:text-sm sm:py-2 @error('email') border-red-400 @enderror">
         @error('email')<p class="text-xs text-red-600 mt-1 font-semibold">{{ $message }}</p>@enderror
     </div>
 
-    <div>
-        <label class="block text-xs font-bold text-slate-500 mb-1">Password</label>
-        <input type="password" name="password" required autocomplete="current-password"
-               class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @error('password') border-red-400 @enderror">
+    <div x-data="{ show: false }">
+        <label for="password" class="block text-xs font-bold text-slate-500 mb-1">Password</label>
+        <div class="relative">
+            {{-- :type flips between password and text. pr-11 keeps the typed value
+                 clear of the toggle, which is 44px wide so it is a comfortable
+                 touch target. --}}
+            <input id="password" name="password" required autocomplete="current-password"
+                   type="password" :type="show ? 'text' : 'password'"
+                   class="w-full rounded-lg border border-slate-200 pl-3 pr-11 py-2.5 text-base sm:text-sm sm:py-2 @error('password') border-red-400 @enderror">
+            {{-- Static aria-label first so it reads correctly before Alpine binds
+                 (and if Alpine never loads); the :aria-label then keeps it in
+                 step with the state. --}}
+            <button type="button" @click="show = !show"
+                    aria-label="Tampilkan password"
+                    :aria-label="show ? 'Sembunyikan password' : 'Tampilkan password'" :aria-pressed="show"
+                    class="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-slate-400 hover:text-slate-600 transition">
+                <i class="fa-solid" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+            </button>
+        </div>
         @error('password')<p class="text-xs text-red-600 mt-1 font-semibold">{{ $message }}</p>@enderror
     </div>
 

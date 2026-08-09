@@ -2,7 +2,7 @@
 
 @section('title', 'Daftar — IDX Invest')
 
-@php($wide = true)
+@php $wide = true; @endphp
 
 @section('content')
 <h1 class="text-lg font-extrabold mb-1">Buat Akun</h1>

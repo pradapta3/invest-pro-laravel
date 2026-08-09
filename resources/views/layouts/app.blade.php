@@ -46,16 +46,18 @@
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans pb-16">
 
-<header class="sticky top-0 z-30 bg-white border-b border-slate-200">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-4">
-            <a href="{{ route('dashboard') }}" class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+<header class="sticky top-0 z-30 bg-white border-b border-slate-200" x-data="{ nav: false }">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div class="flex items-center gap-3 md:gap-4 min-w-0">
+            <a href="{{ route('dashboard') }}" class="text-lg md:text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent whitespace-nowrap">
                 DOMPET IJO
             </a>
 
             @isset($ihsg)
                 @if($ihsg)
-                    <span class="hidden md:inline-flex items-center text-sm font-bold gap-1">
+                    {{-- The index level is the one number worth keeping on a phone, so
+                         it stays visible; the mood badge waits for a wider screen. --}}
+                    <span class="inline-flex items-center text-xs md:text-sm font-bold gap-1 whitespace-nowrap">
                         <span class="text-slate-400">IHSG</span>
                         <span class="{{ $ihsg['change'] >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
                             {{ number_format($ihsg['price']) }}
@@ -66,14 +68,26 @@
             @endisset
 
             @isset($marketMood)
-                <span class="hidden md:inline-flex items-center text-sm font-bold gap-1" style="color: {{ $marketMood['color'] }}">
+                <span class="hidden sm:inline-flex items-center text-sm font-bold gap-1 whitespace-nowrap" style="color: {{ $marketMood['color'] }}">
                     <i class="fa-solid {{ $marketMood['icon'] }}"></i>
                     {{ $marketMood['pct'] }}% {{ $marketMood['label'] }}
                 </span>
             @endisset
         </div>
 
-        <nav class="flex items-center gap-2 text-sm font-semibold">
+        {{-- Ten action buttons in one non-wrapping row were what forced the whole
+             page wider than a phone, so the browser zoomed the entire layout out
+             to fit. Below md they collapse behind this toggle instead. --}}
+        <button type="button" @click="nav = !nav" :aria-expanded="nav" aria-label="Menu"
+                class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+            <i class="fa-solid" :class="nav ? 'fa-xmark' : 'fa-bars'"></i>
+        </button>
+
+        {{-- `hidden md:flex` is the no-JavaScript baseline: collapsed on a phone,
+             always open from md up. Alpine only ever adds !flex to reveal it, so
+             the header still works if Alpine is slow or blocked. --}}
+        <nav class="hidden md:flex w-full md:w-auto flex-wrap items-center gap-2 text-sm font-semibold"
+             :class="{ '!flex': nav }">
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="inline-flex items-center gap-2 rounded-lg bg-primary text-white px-3 py-2 hover:bg-indigo-700 transition">
