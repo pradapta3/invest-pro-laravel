@@ -162,13 +162,6 @@ if command -v ss >/dev/null 2>&1; then
     done
 fi
 
-# True on the very first deploy — used to decide whether to seed.
-FIRST_RUN=false
-if ! docker volume inspect dompetijo_mysql-data >/dev/null 2>&1; then
-    FIRST_RUN=true
-    ok "first deployment detected (no database volume yet)"
-fi
-
 # -----------------------------------------------------------------------------
 if [ "$DO_BUILD" = true ]; then
     step "Building the application image"
@@ -191,17 +184,62 @@ step "Starting the stack"
 # so --wait blocking on the healthcheck means "the new code is actually live".
 # The timeout matters: without it a container stuck in a restart loop makes this
 # script hang forever instead of showing you the logs.
-docker compose up -d --remove-orphans --wait --wait-timeout 300 || {
+UP_LOG="$(mktemp)"
+set +e
+docker compose up -d --remove-orphans --wait --wait-timeout 300 2>&1 | tee "$UP_LOG"
+UP_STATUS=${PIPESTATUS[0]}
+set -e
+
+if [ "$UP_STATUS" -ne 0 ]; then
     printf '\n'
     docker compose ps
+
+    # A port clash is by far the most common way this fails, and compose reports
+    # it as a wall of driver text. Name it, and say what to do about it.
+    if grep -q 'port is already allocated\|address already in use' "$UP_LOG"; then
+        printf '\n'
+        warn "Caddy could not bind — something else on this server already holds port 80/443:"
+        if command -v ss >/dev/null 2>&1; then
+            ss -ltnp '( sport = :80 or sport = :443 )' 2>/dev/null | sed 's/^/     /'
+        fi
+        rm -f "$UP_LOG"
+        die "Everything except TLS termination is up and healthy. Two ways forward:
+       - stop whatever owns those ports, then re-run ./deploy.sh, or
+       - put this stack behind the existing web server: see
+         \"Di belakang reverse proxy yang sudah ada\" in DEPLOYMENT.md."
+    fi
+
+    rm -f "$UP_LOG"
     printf '\n--- last 60 lines of app log ---\n'
     docker compose logs --tail=60 app || true
     die "the stack did not come up healthy. Full logs: docker compose logs -f"
-}
+fi
+rm -f "$UP_LOG"
 ok "all services healthy"
 
 # -----------------------------------------------------------------------------
-if [ "$FIRST_RUN" = true ] || [ "$FORCE_SEED" = true ]; then
+# Seed when the database holds no users yet.
+#
+# This deliberately asks the database rather than checking whether the mysql
+# volume already exists: a first deploy that fails *after* MySQL comes up — a
+# port clash on the way to starting Caddy, say — leaves the volume created and
+# the tables empty, and a volume-based check would then treat the retry as a
+# routine redeploy and skip seeding, leaving no account to log in with.
+# -----------------------------------------------------------------------------
+NEEDS_SEED=false
+if [ "$FORCE_SEED" = true ]; then
+    NEEDS_SEED=true
+else
+    USER_COUNT="$(docker compose exec -T mysql mysql -N -B \
+        -u root -p"$(env_get DB_ROOT_PASSWORD)" \
+        -e "SELECT COUNT(*) FROM \`$(env_get DB_DATABASE)\`.users;" 2>/dev/null || true)"
+    USER_COUNT="$(printf '%s' "$USER_COUNT" | tr -dc '0-9')"
+    if [ -z "$USER_COUNT" ] || [ "$USER_COUNT" -eq 0 ]; then
+        NEEDS_SEED=true
+    fi
+fi
+
+if [ "$NEEDS_SEED" = true ]; then
     step "Seeding reference data"
     # Lq45Seeder (ticker list), SubscriptionPlanSeeder (plans) and
     # AdminUserSeeder (the first login). AdminUserSeeder prints a generated
