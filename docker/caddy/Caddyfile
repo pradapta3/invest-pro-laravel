@@ -1,0 +1,43 @@
+# Edge reverse proxy. Caddy owns ports 80/443 and obtains + renews the
+# Let's Encrypt certificate for the site automatically — there is no certbot
+# step and no renewal cron to forget. The certificates live in the caddy-data
+# volume, so they survive `docker compose down`.
+#
+# {$VAR} placeholders are filled from the caddy service's environment in
+# docker-compose.yml, which in turn reads them from .env.
+{
+	email {$ACME_EMAIL}
+	# The admin API is only useful for live reconfiguration; leaving it off
+	# means nothing on the container network can rewrite the routing table.
+	admin off
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# The site is HTTPS-only from here on; six months is long enough to
+		# matter without being unrecoverable if the domain changes hands.
+		Strict-Transport-Security "max-age=15768000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# nginx + php-fpm inside the app container. Caddy adds X-Forwarded-For,
+	# X-Forwarded-Proto and X-Forwarded-Host on its own; Laravel reads them
+	# through TrustProxies (bootstrap/app.php) so url()/route() build https
+	# links and Telegram webhook signatures validate against the real host.
+	#
+	# No timeout override: Caddy waits on the upstream indefinitely by default,
+	# which is what the slow synchronous pages (backtests, the TradingView
+	# scanner) need. The real ceiling is set closer to the work — nginx's
+	# fastcgi_read_timeout and php-fpm's request_terminate_timeout.
+	reverse_proxy app:8080
+
+	log {
+		output stdout
+		format console
+	}
+}
