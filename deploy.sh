@@ -52,18 +52,55 @@ if [ ! -f .env ]; then
      Edit it now — every <CHANGE_ME> has to be filled in — then run ./deploy.sh again.
 
      Handy: openssl rand -hex 24    (passwords)
-            openssl rand -hex 32    (TELEGRAM_WEBHOOK_SECRET)"
+            openssl rand -hex 32    (TELEGRAM_WEBHOOK_SECRET)
+
+     The Telegram and Gemini keys are optional; leave those values empty to
+     deploy without them."
 fi
 
-if grep -q '<CHANGE_ME' .env; then
+# Integrations the app boots fine without. Both fail safe when left empty:
+# VerifyTelegramWebhookSecret rejects every request when the secret is blank,
+# and AiGenerativeService answers "AI belum dikonfigurasi" instead of calling
+# out. What is NOT safe is leaving the literal placeholder in place — the
+# template ships in the repo, so a <CHANGE_ME> webhook secret is a secret
+# every reader of the repository already knows.
+OPTIONAL_PLACEHOLDER_KEYS=" TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET TELEGRAM_DEFAULT_CHAT_ID TELEGRAM_BROADCAST_CHAT_IDS TELEGRAM_BOT_USERNAME GEMINI_API_KEY "
+
+# Assignment lines only. The template explains <CHANGE_ME> in its own comments,
+# and matching those made this check fail on an otherwise correctly filled .env.
+REQUIRED_LEFT=""
+OPTIONAL_BLANKED=""
+while IFS= read -r key; do
+    case "$OPTIONAL_PLACEHOLDER_KEYS" in
+        *" $key "*)
+            sed -i "s#^[[:space:]]*${key}[[:space:]]*=.*#${key}=#" .env
+            OPTIONAL_BLANKED="$OPTIONAL_BLANKED $key"
+            ;;
+        *)
+            REQUIRED_LEFT="$REQUIRED_LEFT $key"
+            ;;
+    esac
+done <<EOF
+$(grep -oE '^[[:space:]]*[A-Z_][A-Z0-9_]*[[:space:]]*=.*<CHANGE_ME' .env | sed 's/[[:space:]]*=.*//;s/^[[:space:]]*//')
+EOF
+
+if [ -n "$REQUIRED_LEFT" ]; then
     printf '\n'
-    grep -n '<CHANGE_ME' .env | sed 's/^/     /'
+    for key in $REQUIRED_LEFT; do
+        grep -nE "^[[:space:]]*${key}[[:space:]]*=" .env | sed 's/^/     /'
+    done
     die "the placeholders above are still in .env. Fill them in first."
+fi
+
+if [ -n "$OPTIONAL_BLANKED" ]; then
+    warn "left unset (still placeholders):$OPTIONAL_BLANKED"
+    warn "blanked them so the placeholder text is not used as a real credential."
+    warn "Telegram notifications and AI analysis stay off until you fill these in."
 fi
 
 # .env holds the database password, the Telegram bot token and the app key.
 chmod 600 .env
-ok ".env present, no placeholders left, mode 600"
+ok ".env present, required values set, mode 600"
 
 # Read a value out of .env without sourcing it (values may contain spaces).
 env_get() {

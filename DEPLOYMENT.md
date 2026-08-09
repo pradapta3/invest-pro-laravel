@@ -96,17 +96,27 @@ chmod 600 .env
 nano .env
 ```
 
-Yang **wajib** diisi (semua ditandai `<CHANGE_ME>`; `deploy.sh` menolak jalan
-kalau masih tersisa):
+Yang **wajib** diisi — `deploy.sh` menolak jalan kalau masih `<CHANGE_ME>`:
 
 | Variabel | Isi |
 |---|---|
 | `ACME_EMAIL` | email Anda, untuk notifikasi kegagalan renewal sertifikat |
 | `DB_ROOT_PASSWORD` | `openssl rand -hex 24` |
 | `DB_PASSWORD` | `openssl rand -hex 24` |
-| `TELEGRAM_BOT_TOKEN` | dari @BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | `openssl rand -hex 32` |
-| `GEMINI_API_KEY` | dari https://aistudio.google.com/apikey |
+
+Yang **opsional** — boleh dikosongkan, aplikasi tetap jalan:
+
+| Variabel | Kalau kosong |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | notifikasi & bot Telegram mati |
+| `TELEGRAM_WEBHOOK_SECRET` | route `/telegram/webhook` menolak semua request (403) |
+| `GEMINI_API_KEY` | panel AI menampilkan "AI belum dikonfigurasi" |
+
+Kalau ketiganya masih berisi `<CHANGE_ME>`, `deploy.sh` **mengosongkannya
+otomatis** lalu lanjut. Itu disengaja: file contohnya ada di repo, jadi
+membiarkan teks `<CHANGE_ME>` sebagai `TELEGRAM_WEBHOOK_SECRET` sama saja
+memakai secret yang bisa dibaca siapa pun. Isi kapan saja nanti, lalu
+`docker compose restart app queue scheduler`.
 
 `APP_KEY` dibiarkan kosong — `deploy.sh` yang mengisinya.
 
