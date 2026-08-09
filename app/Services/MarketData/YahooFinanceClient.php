@@ -3,6 +3,7 @@
 namespace App\Services\MarketData;
 
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -34,39 +35,12 @@ class YahooFinanceClient
         $ticker = $this->normalizeTicker($ticker);
         $url = config('services.yahoo_finance.base_url')."/v8/finance/chart/{$ticker}";
 
-        try {
-            $response = $this->client()->get($url, [
-                'range' => $range,
-                'interval' => $interval,
-            ]);
-        } catch (Throwable $e) {
-            // An error *status* falls through to the successful() check below,
-            // but a transport failure — DNS, TLS, connection reset, or the
-            // services.yahoo_finance.timeout expiring — throws instead. That
-            // matters here because DashboardController calls this synchronously
-            // on the landing page via MarketDataService::indexQuote(), so an
-            // upstream hiccup turned the whole dashboard into a 500. Callers
-            // already treat [] as "no data" (indexQuote returns null, and
-            // layouts/app.blade.php only renders the IHSG ticker @if($ihsg)),
-            // so degrade to that instead.
-            Log::channel('market_data')->warning('Yahoo chart request failed', [
-                'ticker' => $ticker,
-                'error' => $e->getMessage(),
-            ]);
+        $response = $this->attempt('chart', $ticker, fn () => $this->client()->get($url, [
+            'range' => $range,
+            'interval' => $interval,
+        ]));
 
-            return [];
-        }
-
-        if (! $response->successful()) {
-            Log::channel('market_data')->warning('Yahoo chart request failed', [
-                'ticker' => $ticker,
-                'status' => $response->status(),
-            ]);
-
-            return [];
-        }
-
-        return $response->json('chart.result.0') ?? [];
+        return $response?->json('chart.result.0') ?? [];
     }
 
     public function quoteSummary(string $ticker, array $modules = ['financialData', 'defaultKeyStatistics']): array
@@ -74,16 +48,15 @@ class YahooFinanceClient
         $ticker = $this->normalizeTicker($ticker);
         $url = config('services.yahoo_finance.base_url')."/v10/finance/quoteSummary/{$ticker}";
 
-        $response = $this->authenticatedClient()->get($url, [
+        // The whole call, crumb handshake included, sits inside the closure:
+        // crumb() and cookieJar() make upstream requests of their own, and as
+        // arguments they would otherwise be evaluated outside any guard.
+        $response = $this->attempt('quoteSummary', $ticker, fn () => $this->authenticatedClient()->get($url, [
             'modules' => implode(',', $modules),
             'crumb' => $this->crumb(),
-        ]);
+        ]));
 
-        if (! $response->successful()) {
-            return [];
-        }
-
-        return $response->json('quoteSummary.result.0') ?? [];
+        return $response?->json('quoteSummary.result.0') ?? [];
     }
 
     public function realtimeQuote(string $ticker): array
@@ -91,16 +64,49 @@ class YahooFinanceClient
         $ticker = $this->normalizeTicker($ticker);
         $url = config('services.yahoo_finance.base_url').'/v7/finance/quote';
 
-        $response = $this->authenticatedClient()->get($url, [
+        $response = $this->attempt('realtimeQuote', $ticker, fn () => $this->authenticatedClient()->get($url, [
             'symbols' => $ticker,
             'crumb' => $this->crumb(),
-        ]);
+        ]));
 
-        if (! $response->successful()) {
-            return [];
+        return $response?->json('quoteResponse.result.0') ?? [];
+    }
+
+    /**
+     * Runs one upstream call and reduces every way it can fail to null.
+     *
+     * An error *status* was always handled here; a transport failure — DNS,
+     * TLS, connection reset, or services.yahoo_finance.timeout expiring —
+     * throws instead, and used to escape to the caller. That took the whole
+     * dashboard down with it, because DashboardController reaches chart()
+     * synchronously through MarketDataService::indexQuote() while rendering
+     * the landing page. Every caller already treats an empty result as "no
+     * data" (indexQuote returns null, and layouts/app.blade.php renders the
+     * IHSG ticker only @if($ihsg)), so a dead upstream degrades to that.
+     */
+    private function attempt(string $context, string $ticker, callable $call): ?Response
+    {
+        try {
+            $response = $call();
+        } catch (Throwable $e) {
+            Log::channel('market_data')->warning("Yahoo {$context} request failed", [
+                'ticker' => $ticker,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
         }
 
-        return $response->json('quoteResponse.result.0') ?? [];
+        if (! $response->successful()) {
+            Log::channel('market_data')->warning("Yahoo {$context} request failed", [
+                'ticker' => $ticker,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        return $response;
     }
 
     /**
@@ -123,6 +129,15 @@ class YahooFinanceClient
     public function normalizeTicker(string $ticker): string
     {
         $ticker = strtoupper(trim($ticker));
+
+        // Yahoo prefixes index symbols with ^ and they carry no exchange
+        // suffix: the IHSG is ^JKSE, not ^JKSE.JK. Appending one produced a
+        // symbol Yahoo does not know, so MarketDataService::indexQuote() — the
+        // only caller that passes an index — could never return anything and
+        // the IHSG figure in the dashboard header was permanently blank.
+        if (str_starts_with($ticker, '^')) {
+            return $ticker;
+        }
 
         return str_contains($ticker, '.JK') ? $ticker : $ticker.'.JK';
     }
