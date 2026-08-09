@@ -31,3 +31,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Host-specific compose overrides (see docker-compose.override.nginx-proxy.yml)
+/docker-compose.override.yml
