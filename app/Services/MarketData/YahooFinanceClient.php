@@ -5,6 +5,7 @@ namespace App\Services\MarketData;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Talks to Yahoo Finance's unofficial JSON endpoints.
@@ -33,10 +34,28 @@ class YahooFinanceClient
         $ticker = $this->normalizeTicker($ticker);
         $url = config('services.yahoo_finance.base_url')."/v8/finance/chart/{$ticker}";
 
-        $response = $this->client()->get($url, [
-            'range' => $range,
-            'interval' => $interval,
-        ]);
+        try {
+            $response = $this->client()->get($url, [
+                'range' => $range,
+                'interval' => $interval,
+            ]);
+        } catch (Throwable $e) {
+            // An error *status* falls through to the successful() check below,
+            // but a transport failure — DNS, TLS, connection reset, or the
+            // services.yahoo_finance.timeout expiring — throws instead. That
+            // matters here because DashboardController calls this synchronously
+            // on the landing page via MarketDataService::indexQuote(), so an
+            // upstream hiccup turned the whole dashboard into a 500. Callers
+            // already treat [] as "no data" (indexQuote returns null, and
+            // layouts/app.blade.php only renders the IHSG ticker @if($ihsg)),
+            // so degrade to that instead.
+            Log::channel('market_data')->warning('Yahoo chart request failed', [
+                'ticker' => $ticker,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
 
         if (! $response->successful()) {
             Log::channel('market_data')->warning('Yahoo chart request failed', [

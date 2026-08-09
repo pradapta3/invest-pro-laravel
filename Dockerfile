@@ -101,7 +101,9 @@ FROM php:8.4-fpm-alpine AS runtime
 # $PHPIZE_DEPS is the compiler toolchain docker-php-ext-install requires. The
 # alpine images define the variable but deliberately do not install it, so it
 # has to be added and then removed again — leaving it in roughly doubles the
-# image size.
+# image size. It is unquoted on purpose: it is a space-separated package list
+# that has to word-split (shellcheck flags this as SC2086; quoting it would
+# make apk look for one absurdly long package name).
 RUN set -eux; \
     apk add --no-cache nginx supervisor curl tzdata; \
     apk add --no-cache --virtual .build-deps $PHPIZE_DEPS; \
