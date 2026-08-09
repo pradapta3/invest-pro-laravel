@@ -175,10 +175,11 @@ if [ "$DO_BUILD" = true ]; then
 fi
 
 # -----------------------------------------------------------------------------
-step "Pulling the mysql and caddy images"
+step "Pulling third-party images"
 # -----------------------------------------------------------------------------
-# Pulled separately from `up` so that a slow download is not counted against the
-# health-wait timeout below.
+# mysql, plus caddy when this host is terminating its own TLS. Pulled separately
+# from `up` so that a slow download is not counted against the health-wait
+# timeout below.
 docker compose pull --ignore-buildable --quiet
 ok "images up to date"
 
@@ -281,8 +282,28 @@ cat <<EOF
   Logs:      docker compose logs -f app
   Scheduler: docker compose logs -f scheduler
   Artisan:   docker compose exec app php artisan <command>
+EOF
+
+# Which component terminates TLS depends on whether an override profiled the
+# caddy service out, so the closing hint has to ask rather than assume —
+# pointing someone at `docker compose logs caddy` for a service that is not in
+# their configuration is worse than saying nothing.
+if docker compose config --services 2>/dev/null | grep -qx caddy; then
+    cat <<EOF
 
   The first HTTPS request can take a few seconds while Caddy fetches the
   certificate. If it stays on http, check: docker compose logs caddy
 
 EOF
+else
+    cat <<EOF
+
+  TLS is handled by the reverse proxy already running on this host, not by
+  this stack. Watch the certificate being issued with:
+
+      docker logs -f nginx-proxy-acme
+
+  It needs ${APP_DOMAIN} to resolve to this server first.
+
+EOF
+fi
