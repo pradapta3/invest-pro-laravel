@@ -18,6 +18,31 @@
 
 return [
 
+    /*
+    |--------------------------------------------------------------------------
+    | Realtime refresh cadence
+    |--------------------------------------------------------------------------
+    |
+    | Cron expression for idx:update-realtime-quotes (see routes/console.php).
+    | It is worth tuning because the command is cheap: realtimeScan() is a
+    | single TradingView request covering the whole exchange, not one per
+    | ticker, so the default five-minute cadence costs 12 requests an hour no
+    | matter how many emiten are tracked. Use '* * * * *' for near-live quotes,
+    | or back off if TradingView starts rate-limiting.
+    |
+    | (Written out in words rather than as a cron literal on purpose: a star
+    | followed by a slash inside this comment would close it early.)
+    |
+    | This lives in config rather than being read with env() at the schedule
+    | itself: once config:cache has run — which the container entrypoint does
+    | on every boot — Laravel stops loading .env at all, and an env() call
+    | outside a config file would silently fall back to its default.
+    |
+    */
+
+    'realtime_cron' => env('IDX_REALTIME_CRON', '*/5 * * * *'),
+
+
     'baseline' => [
         // Applied by every strategy before its own filters, matching the
         // `close_price > 50 AND volume > 0` guard repeated everywhere.
