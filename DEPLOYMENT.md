@@ -244,7 +244,7 @@ docker compose exec app php artisan idx:update-realtime-quotes
 docker compose exec app php artisan idx:update-market-data
 docker compose exec app php artisan idx:backfill-price-history --years=1
 docker compose exec app php artisan idx:update-news-sentiment
-docker compose exec app php artisan system:health-check
+docker compose exec app php artisan idx:health-check
 ```
 
 Jadwal otomatisnya ada di `routes/console.php` dan dijalankan container

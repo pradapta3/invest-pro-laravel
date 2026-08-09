@@ -16,7 +16,7 @@
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm min-w-[40rem]">
             <thead class="bg-slate-50 text-xs uppercase text-slate-400">
                 <tr>
                     <th class="text-left px-4 py-3">Nama</th>

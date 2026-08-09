@@ -18,6 +18,11 @@
         </script>
     @endif
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {{-- Alpine is deferred, so anything carrying x-cloak paints before it binds.
+         Without this the mobile drawer's full-screen backdrop covers the admin
+         panel on first paint — and forever if the Alpine CDN is unreachable.
+         layouts/app and layouts/guest already ship this rule. --}}
+    <style>[x-cloak] { display: none !important; }</style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 

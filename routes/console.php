@@ -1,7 +1,9 @@
 <?php
 
+use Cron\CronExpression;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -31,8 +33,23 @@ Artisan::command('inspire', function () {
 // (1440 minutes) a run killed mid-flight — a container restart, say — would
 // hold the lock for a day and silently stop every later run. At this cadence
 // that would be invisible until someone noticed stale prices.
+// Validated rather than passed straight through: an invalid expression throws
+// the first time schedule:work evaluates due events, the process exits, Docker's
+// restart policy brings it back, and it dies again — a crash loop that stops
+// every *other* scheduled command too. A typo in one env var should not cost
+// the market-data refresh, the backfill and the alerts.
+$realtimeCron = trim((string) config('screener.realtime_cron'));
+
+if (! CronExpression::isValidExpression($realtimeCron)) {
+    Log::warning('Invalid IDX_REALTIME_CRON, falling back to every 5 minutes.', [
+        'value' => $realtimeCron,
+    ]);
+
+    $realtimeCron = '*/5 * * * *';
+}
+
 Schedule::command('idx:update-realtime-quotes')
-    ->cron(config('screener.realtime_cron'))
+    ->cron($realtimeCron)
     ->weekdays()
     ->between('09:00', '16:00')
     ->withoutOverlapping(10);

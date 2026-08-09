@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\PhpExecutableFinder;
 
 /**
  * On-demand "Update Now" trigger for the dashboard's Data Updater menu —
@@ -15,12 +15,17 @@ use Symfony\Component\Process\PhpExecutableFinder;
  *
  * These jobs loop over hundreds of external API calls and can take
  * minutes, so running one synchronously inside a web request would hang
- * the browser tab and risk a PHP/Apache timeout. Instead this spawns the
- * artisan command as a detached background process and returns
- * immediately; refresh the page after a minute or two to see results.
- * The commands only run automatically on a schedule if something is
- * actually invoking `php artisan schedule:run` (cron / Task Scheduler) —
- * this button does not require that to be set up.
+ * the browser tab and risk a timeout. Instead the artisan command is
+ * pushed onto the queue and picked up by the dedicated queue worker;
+ * refresh the page after a minute or two to see results.
+ *
+ * This used to shell out to PowerShell's Start-Process, which only ever
+ * worked on the Windows box the app was originally developed on. In the
+ * Linux container there is no powershell.exe, so popen() silently failed
+ * and every button reported success while doing nothing at all.
+ * Artisan::queue() needs no detachment tricks and works the same on any
+ * host: the queue container is a separate long-lived process by
+ * construction, so nothing dies when this request ends.
  */
 class DataUpdateController extends Controller
 {
@@ -29,7 +34,10 @@ class DataUpdateController extends Controller
         'market' => ['command' => 'idx:update-market-data', 'label' => 'Update Market (EOD)'],
         'fundamentals' => ['command' => 'idx:update-fundamentals', 'label' => 'Update Fundamental'],
         'sentiment' => ['command' => 'idx:update-news-sentiment', 'label' => 'Update News Sentiment'],
-        'history' => ['command' => 'idx:backfill-price-history --years=2', 'label' => 'Backfill Riwayat 2 Tahun (untuk Backtest)'],
+        // Parameters are kept separate rather than appended to the command
+        // string: Artisan::queue() takes them as an associative array, and a
+        // bare "--years=2" token is read as a positional argument and rejected.
+        'history' => ['command' => 'idx:backfill-price-history', 'parameters' => ['--years' => 2], 'label' => 'Backfill Riwayat 2 Tahun (untuk Backtest)'],
     ];
 
     public function jobs(): JsonResponse
@@ -43,7 +51,7 @@ class DataUpdateController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unknown update job.'], 404);
         }
 
-        $this->spawnDetached(self::JOBS[$key]['command'], $key);
+        Artisan::queue(self::JOBS[$key]['command'], self::JOBS[$key]['parameters'] ?? []);
 
         Log::info('Manual data update triggered', ['job' => $key]);
 
@@ -53,48 +61,4 @@ class DataUpdateController extends Controller
         ]);
     }
 
-    /**
-     * Spawns `php artisan {$artisanCommand}` as a process genuinely
-     * independent of this HTTP request. $artisanCommand may include
-     * options (e.g. "idx:backfill-price-history --years=2") — each
-     * whitespace-separated token becomes its own -ArgumentList entry, the
-     * same way argv works; passing the whole string as one quoted token
-     * would make Artisan see a single malformed argument instead of a
-     * command name plus an option.
-     *
-     * Symfony Process's default start() pipes the child's stdout/stderr
-     * back to this PHP process so they can be read later — but on
-     * Windows, once this request finishes and Apache tears down its
-     * worker, those pipe handles close and the child dies the instant it
-     * tries to write anything (its own startup banner included) with a
-     * broken-pipe error. PowerShell's Start-Process avoids that
-     * entirely: it launches a truly separate process tree with its own
-     * output redirected to a log file, unaffected by this request ending.
-     */
-    private function spawnDetached(string $artisanCommand, string $logKey): void
-    {
-        $phpPath = (new PhpExecutableFinder)->find() ?: 'php';
-        $logDir = storage_path('logs');
-        $outLog = "{$logDir}/update-{$logKey}.log";
-        $errLog = "{$logDir}/update-{$logKey}.err.log";
-
-        $psQuote = fn (string $value): string => "'".str_replace("'", "''", $value)."'";
-
-        $arguments = array_merge([base_path('artisan')], preg_split('/\s+/', trim($artisanCommand)));
-        $argumentList = implode(',', array_map($psQuote, $arguments));
-
-        $psScript = sprintf(
-            'Start-Process -FilePath %s -ArgumentList %s -WorkingDirectory %s -WindowStyle Hidden -RedirectStandardOutput %s -RedirectStandardError %s',
-            $psQuote($phpPath),
-            $argumentList,
-            $psQuote(base_path()),
-            $psQuote($outLog),
-            $psQuote($errLog),
-        );
-
-        $handle = popen('powershell.exe -NoProfile -NonInteractive -Command '.escapeshellarg($psScript), 'r');
-        if ($handle !== false) {
-            pclose($handle);
-        }
-    }
 }
