@@ -71,6 +71,11 @@ OPTIONAL_PLACEHOLDER_KEYS=" TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET TELEGRAM_
 REQUIRED_LEFT=""
 OPTIONAL_BLANKED=""
 while IFS= read -r key; do
+    # A here-doc built from an empty $(...) still delivers one empty line, so a
+    # .env with no placeholders left would otherwise queue "" as a missing
+    # required key and abort with nothing to print.
+    [ -n "$key" ] || continue
+
     case "$OPTIONAL_PLACEHOLDER_KEYS" in
         *" $key "*)
             sed -i "s#^[[:space:]]*${key}[[:space:]]*=.*#${key}=#" .env
