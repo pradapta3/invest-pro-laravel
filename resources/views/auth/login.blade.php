@@ -18,8 +18,15 @@
 
     <div>
         <label class="block text-xs font-bold text-slate-500 mb-1">Password</label>
-        <input type="password" name="password" required autocomplete="current-password"
-               class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @error('password') border-red-400 @enderror">
+        <div class="relative" x-data="{ show: false }">
+            <input :type="show ? 'text' : 'password'" name="password" required autocomplete="current-password"
+                   class="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm @error('password') border-red-400 @enderror">
+            <button type="button" @click="show = !show" tabindex="-1"
+                    class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                    :aria-label="show ? 'Sembunyikan password' : 'Tampilkan password'">
+                <i class="fa-solid" :class="show ? 'fa-eye-slash' : 'fa-eye'"></i>
+            </button>
+        </div>
         @error('password')<p class="text-xs text-red-600 mt-1 font-semibold">{{ $message }}</p>@enderror
     </div>
 
@@ -30,6 +37,14 @@
         </label>
         <a href="{{ route('password.request') }}" class="text-primary font-bold hover:underline">Lupa password?</a>
     </div>
+
+    @if (config('services.recaptcha.site_key'))
+        <div>
+            <div class="g-recaptcha" data-sitekey="{{ config('services.recaptcha.site_key') }}"></div>
+            @error('g-recaptcha-response')<p class="text-xs text-red-600 mt-1 font-semibold">{{ $message }}</p>@enderror
+        </div>
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 
     <button type="submit" class="w-full rounded-lg bg-primary text-white font-bold py-2.5 text-sm hover:bg-indigo-700 transition">Masuk</button>
 </form>

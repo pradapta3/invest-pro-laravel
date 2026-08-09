@@ -38,6 +38,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Google reCAPTCHA
+    |--------------------------------------------------------------------------
+    |
+    | Keys from https://www.google.com/recaptcha/admin (reCAPTCHA v2,
+    | "I'm not a robot" checkbox). The login form only renders the widget
+    | when site_key is set, and App\Rules\Recaptcha only calls out to
+    | Google when secret_key is set — leave both blank to disable CAPTCHA
+    | (e.g. local development).
+    |
+    */
+
+    'recaptcha' => [
+        'site_key' => env('RECAPTCHA_SITE_KEY'),
+        'secret_key' => env('RECAPTCHA_SECRET_KEY'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Google Gemini
     |--------------------------------------------------------------------------
     */
