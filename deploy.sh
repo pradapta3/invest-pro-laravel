@@ -203,6 +203,22 @@ if [ "$UP_STATUS" -ne 0 ]; then
             ss -ltnp '( sport = :80 or sport = :443 )' 2>/dev/null | sed 's/^/     /'
         fi
         rm -f "$UP_LOG"
+
+        # The nginx-proxy family advertises itself clearly, and there is a
+        # ready-made override for it — worth naming rather than making someone
+        # find it in the docs.
+        if docker ps --format '{{.Image}}' 2>/dev/null | grep -q 'nginxproxy/nginx-proxy\|jwilder/nginx-proxy'; then
+            die "This host runs nginx-proxy, which already owns :80/:443 and already
+     issues certificates. Register the app with it instead of running Caddy:
+
+       cp docker-compose.override.nginx-proxy.yml docker-compose.override.yml
+       docker inspect nginx-proxy --format '{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{\"\\n\"}}{{end}}'
+       # put that network name in NGINX_PROXY_NETWORK in .env, then
+       ./deploy.sh
+
+     Everything except TLS termination is already up and healthy."
+        fi
+
         die "Everything except TLS termination is up and healthy. Two ways forward:
        - stop whatever owns those ports, then re-run ./deploy.sh, or
        - put this stack behind the existing web server: see

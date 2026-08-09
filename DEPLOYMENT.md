@@ -307,16 +307,54 @@ docker compose down -v      # -v juga menghapus sertifikat Caddy
 
 ## Di belakang reverse proxy yang sudah ada
 
-Kalau port 80/443 sudah dipakai proxy lain di server ini, jangan jalankan
-container `caddy`. Buat `docker-compose.override.yml`:
+### Kalau server sudah menjalankan nginx-proxy + acme-companion
+
+Ini kasus di `202.155.14.70`, yang sudah memakai `nginxproxy/nginx-proxy` +
+`nginxproxy/acme-companion` untuk poskasir dan britacof. Proxy itu sudah
+memegang :80/:443 dan sudah mengurus Let's Encrypt, jadi Caddy bawaan tidak
+perlu jalan sama sekali — cukup daftarkan aplikasi ke proxy tersebut.
+
+```bash
+cd /opt/dompetijo
+cp docker-compose.override.nginx-proxy.yml docker-compose.override.yml
+
+# nama network milik nginx-proxy
+docker inspect nginx-proxy \
+  --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+
+nano .env      # isi NGINX_PROXY_NETWORK dengan nama di atas
+./deploy.sh
+```
+
+Compose memuat `docker-compose.override.yml` otomatis, jadi `deploy.sh` tidak
+perlu argumen tambahan. Yang dilakukan file itu:
+
+- menaruh `caddy` di profil yang tidak pernah diaktifkan, sehingga service-nya
+  hilang dari konfigurasi berikut binding :80/:443-nya;
+- menyetel `VIRTUAL_HOST` dan `VIRTUAL_PORT=8080` supaya nginx-proxy tahu ke
+  mana merutekan `dompetijo.mbayar.my.id`. `VIRTUAL_PORT` wajib di sini karena
+  image mengekspos dua port (8080 dari nginx, 9000 warisan php-fpm) dan proxy
+  tidak menebak;
+- menyetel `LETSENCRYPT_HOST`/`LETSENCRYPT_EMAIL` untuk acme-companion;
+- menyambungkan container `app` ke network milik nginx-proxy.
+
+`TRUSTED_PROXIES` tidak perlu diubah: nginx-proxy berada di rentang Docker
+`172.16.0.0/12` yang sudah tercakup, dan ia mengirim `X-Forwarded-Proto`,
+`X-Forwarded-For` serta `X-Forwarded-Host` yang dibutuhkan Laravel.
+
+Untuk kembali memakai Caddy bawaan, hapus `docker-compose.override.yml`.
+
+### Proxy lain (nginx di host, Traefik, dsb.)
+
+Buat `docker-compose.override.yml` sendiri:
 
 ```yaml
 services:
   caddy:
-    scale: 0          # jangan dijalankan
+    profiles: ["standalone-tls"]   # jangan dijalankan
   app:
     ports:
-      - "127.0.0.1:8080:8080"   # hanya loopback, tidak terekspos ke internet
+      - "127.0.0.1:8080:8080"      # hanya loopback, tidak terekspos ke internet
 ```
 
 Lalu arahkan proxy yang ada ke `127.0.0.1:8080`, dan pastikan ia meneruskan

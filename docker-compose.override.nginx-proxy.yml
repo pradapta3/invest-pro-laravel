@@ -1,0 +1,56 @@
+# Overrides for a host that already runs nginx-proxy + acme-companion
+# (the nginxproxy/nginx-proxy family) — as 202.155.14.70 does for poskasir
+# and britacof.
+#
+# That proxy already owns :80 and :443 and already issues Let's Encrypt
+# certificates, discovering what to route by reading environment variables off
+# every container on its network. So the bundled Caddy has nothing left to do
+# and simply cannot bind — this file switches it off and registers the app with
+# the proxy instead.
+#
+#   cp docker-compose.override.nginx-proxy.yml docker-compose.override.yml
+#   # set NGINX_PROXY_NETWORK in .env, then:
+#   ./deploy.sh
+#
+# Compose loads docker-compose.override.yml automatically, so deploy.sh needs
+# no arguments and behaves exactly as before.
+
+services:
+  caddy:
+    # Assigning a profile nobody activates removes the service from the default
+    # configuration outright — `docker compose config` stops listing it and its
+    # :80/:443 bindings disappear entirely, so there is nothing left to collide
+    # with the existing proxy and nothing for `up --wait` to wait on.
+    #
+    # It stays declared rather than deleted, so going back to the bundled Caddy
+    # is just removing docker-compose.override.yml (or, to try it once,
+    # COMPOSE_PROFILES=standalone-tls docker compose up -d).
+    profiles: ["standalone-tls"]
+
+  app:
+    environment:
+      # nginx-proxy routes this hostname here. VIRTUAL_PORT is required rather
+      # than optional: the image exposes 8080 (nginx) and inherits 9000
+      # (php-fpm) from the PHP base image, and with two exposed ports the proxy
+      # will not guess.
+      VIRTUAL_HOST: ${APP_DOMAIN:?APP_DOMAIN is not set in .env}
+      VIRTUAL_PORT: "8080"
+
+      # acme-companion watches for these two and handles issuance + renewal.
+      LETSENCRYPT_HOST: ${APP_DOMAIN}
+      LETSENCRYPT_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is not set in .env}
+
+    networks:
+      # backend (mysql, queue, scheduler) and edge are re-listed because this
+      # key replaces rather than extends the one in docker-compose.yml.
+      - backend
+      - edge
+      - proxy
+
+networks:
+  # The network nginx-proxy itself is attached to. Find its name with:
+  #   docker inspect nginx-proxy \
+  #     --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+  proxy:
+    external: true
+    name: ${NGINX_PROXY_NETWORK:?NGINX_PROXY_NETWORK is not set in .env}
