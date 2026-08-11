@@ -94,10 +94,15 @@ class UpdateRealtimeQuotes extends Command
             ];
         }
 
-        // insert() rather than upsert() for the refs: discovering a ticker must
-        // not overwrite a company name or sector someone corrected by hand.
+        // insertOrIgnore, not insert: the admin "Update Realtime" button queues
+        // this command outside the scheduler's withoutOverlapping lock, so two
+        // runs can overlap. Both snapshot $knownRefs before either writes, so a
+        // plain insert() would hit a duplicate primary key and abort the run
+        // before a single price was updated. Ignoring is also what we want
+        // semantically — discovering a ticker must not overwrite a company name
+        // or sector someone corrected by hand, which is why this is not upsert.
         foreach (array_chunk($newRefs, 500) as $chunk) {
-            StockRef::query()->insert($chunk);
+            StockRef::query()->insertOrIgnore($chunk);
         }
 
         foreach (array_chunk($priceUpdates, 500) as $chunk) {

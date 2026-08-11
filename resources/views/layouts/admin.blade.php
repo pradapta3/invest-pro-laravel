@@ -18,20 +18,19 @@
         </script>
     @endif
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    {{-- Alpine is deferred, so anything carrying x-cloak paints before it binds.
-         Without this the mobile drawer's full-screen backdrop covers the admin
-         panel on first paint — and forever if the Alpine CDN is unreachable.
-         layouts/app and layouts/guest already ship this rule. --}}
+    {{-- Kept for any Alpine component added to an admin page later: without it
+         x-cloak elements paint before Alpine binds. The drawer below no longer
+         relies on either. --}}
     <style>[x-cloak] { display: none !important; }</style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 
-<div class="flex min-h-screen" x-data="{ side: false }">
+<div class="flex min-h-screen">
     {{-- Mobile top bar. The sidebar below is 240px wide, which is most of a
          phone screen, so on small screens it becomes a drawer and this is what
          opens it. --}}
     <div class="md:hidden fixed top-0 inset-x-0 z-30 h-14 bg-slate-900 text-white flex items-center gap-3 px-4">
-        <button type="button" @click="side = true" aria-label="Buka menu"
+        <button type="button" id="side-open" aria-label="Buka menu" aria-controls="admin-side" aria-expanded="false"
                 class="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-800 transition">
             <i class="fa-solid fa-bars"></i>
         </button>
@@ -40,21 +39,20 @@
     </div>
 
     {{-- Backdrop, mobile only. --}}
-    <div x-show="side" x-cloak @click="side = false"
+    <div id="side-backdrop" hidden
          class="md:hidden fixed inset-0 bg-slate-900/60 z-40"></div>
 
     {{-- Off-canvas below md, an ordinary column from md up. The base classes are
          the closed state so the drawer is not briefly visible before Alpine
          initialises, and md:translate-x-0 pins it open on desktop regardless. --}}
-    <aside class="fixed md:static inset-y-0 left-0 z-50 w-60 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col
-                  transform transition-transform duration-200 -translate-x-full md:translate-x-0"
-           :class="{ '!translate-x-0': side }">
+    <aside id="admin-side" class="fixed md:static inset-y-0 left-0 z-50 w-60 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col
+                  transform transition-transform duration-200 -translate-x-full md:translate-x-0">
         <div class="p-5 border-b border-slate-800 flex items-start justify-between gap-2">
             <div>
                 <span class="text-lg font-extrabold text-white">DOMPET IJO</span>
                 <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mt-0.5">Admin Panel</div>
             </div>
-            <button type="button" @click="side = false" aria-label="Tutup menu"
+            <button type="button" id="side-close" aria-label="Tutup menu"
                     class="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-800 transition">
                 <i class="fa-solid fa-xmark"></i>
             </button>
@@ -112,6 +110,31 @@
         @yield('content')
     </main>
 </div>
+
+{{-- Inline, un-deferred, no CDN. The main layout's nav toggle was moved off
+     Alpine for this exact reason and this drawer was left behind: with
+     cdn.jsdelivr.net blocked the aside stays translated off-screen below md,
+     putting every admin page — including logout — out of reach behind a dead
+     hamburger. --}}
+<script>
+(function () {
+    var openBtn = document.getElementById('side-open');
+    var closeBtn = document.getElementById('side-close');
+    var side = document.getElementById('admin-side');
+    var backdrop = document.getElementById('side-backdrop');
+    if (!openBtn || !side) return;
+
+    function set(open) {
+        side.classList.toggle('!translate-x-0', open);
+        if (backdrop) { backdrop.hidden = !open; }
+        openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    openBtn.addEventListener('click', function () { set(true); });
+    if (closeBtn) { closeBtn.addEventListener('click', function () { set(false); }); }
+    if (backdrop) { backdrop.addEventListener('click', function () { set(false); }); }
+})();
+</script>
 
 </body>
 </html>

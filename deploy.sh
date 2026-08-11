@@ -252,11 +252,23 @@ NEEDS_SEED=false
 if [ "$FORCE_SEED" = true ]; then
     NEEDS_SEED=true
 else
+    # Deliberately fails SAFE. An unreadable answer is not the same as "no
+    # users": the probe can break on its own (a rotated root password, a
+    # changed DB_DATABASE) long after the site is live, and treating that as
+    # an empty database would re-run the seeders over real data —
+    # SubscriptionPlanSeeder uses updateOrCreate, so it would reset every
+    # customer-facing plan name and price back to the placeholders, and
+    # Lq45Seeder would overwrite hand-corrected company names.
     USER_COUNT="$(docker compose exec -T mysql mysql -N -B \
         -u root -p"$(env_get DB_ROOT_PASSWORD)" \
         -e "SELECT COUNT(*) FROM \`$(env_get DB_DATABASE)\`.users;" 2>/dev/null || true)"
     USER_COUNT="$(printf '%s' "$USER_COUNT" | tr -dc '0-9')"
-    if [ -z "$USER_COUNT" ] || [ "$USER_COUNT" -eq 0 ]; then
+
+    if [ -z "$USER_COUNT" ]; then
+        warn "could not read the user count — skipping the seeders rather than risk"
+        warn "re-seeding a live database. Run ./deploy.sh --seed if this really is a"
+        warn "fresh install."
+    elif [ "$USER_COUNT" -eq 0 ]; then
         NEEDS_SEED=true
     fi
 fi

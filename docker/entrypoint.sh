@@ -141,12 +141,17 @@ case "$ROLE" in
         # --max-time recycles the worker hourly so a slow leak in a long-lived
         # PHP process never becomes the reason the queue stalls.
         log "starting queue worker."
+        # --timeout must stay BELOW config/queue.php's retry_after (1860s), so a
+        # job is killed by the worker before the queue considers it abandoned
+        # and hands it to a second worker. 1800s is generous because the jobs
+        # the admin Data Updater enqueues walk the whole exchange one Yahoo
+        # request at a time.
         exec php artisan queue:work \
             --queue=default \
             --sleep=3 \
             --tries=3 \
             --backoff=10 \
-            --timeout=300 \
+            --timeout=1800 \
             --max-time=3600 \
             --no-interaction
         ;;

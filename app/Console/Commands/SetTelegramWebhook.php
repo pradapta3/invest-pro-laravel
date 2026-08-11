@@ -109,7 +109,12 @@ class SetTelegramWebhook extends Command
 
         $this->components->twoColumnDetail('URL', $registered !== '' ? $registered : '<fg=yellow>(none)</>');
         $this->components->twoColumnDetail('Pending updates', (string) ($result['pending_update_count'] ?? 0));
-        $this->components->twoColumnDetail('Custom secret set', ($result['has_custom_certificate'] ?? false) ? 'n/a' : (($result['url'] ?? '') !== '' ? 'yes (Telegram does not echo it back)' : 'no'));
+        // Telegram never reports whether a secret_token is registered, so this
+        // cannot be answered. Saying "yes" because a URL exists was worse than
+        // saying nothing: a webhook registered by the old curl without a secret
+        // is exactly what this command is for, and it would have been reported
+        // as fine while every update got a 403.
+        $this->components->twoColumnDetail('Secret token', '<fg=gray>not reported by Telegram — re-run without --show to set it from config</>');
 
         if (isset($result['last_error_message'])) {
             $this->components->twoColumnDetail('Last error', '<fg=red>'.$result['last_error_message'].'</>');
