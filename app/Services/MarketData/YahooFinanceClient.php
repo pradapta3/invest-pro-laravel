@@ -26,9 +26,27 @@ use Throwable;
  */
 class YahooFinanceClient
 {
+    /**
+     * How many transport failures in a row before this instance stops trying.
+     *
+     * Not one: idx:update-market-data loops every tracked ticker on a single
+     * injected instance, and a lone blip on the first ticker must not skip the
+     * other nine hundred. Not many either: PortfolioService::holdings() calls
+     * chart() once per position whose stock_prices row has no usable close, so
+     * with Yahoo unreachable each attempt costs a full
+     * services.yahoo_finance.timeout. Fifteen holdings meant fifteen sequential
+     * timeouts — past nginx's fastcgi_read_timeout and php-fpm's
+     * request_terminate_timeout, so the page 504'd while holding one of only
+     * twenty workers for over two minutes. Three bounds that at roughly one
+     * timeout's worth of waiting.
+     */
+    private const MAX_CONSECUTIVE_FAILURES = 3;
+
     private ?string $crumb = null;
 
     private ?CookieJar $cookieJar = null;
+
+    private int $consecutiveFailures = 0;
 
     public function chart(string $ticker, string $range = '1mo', string $interval = '1d'): array
     {
@@ -86,16 +104,32 @@ class YahooFinanceClient
      */
     private function attempt(string $context, string $ticker, callable $call): ?Response
     {
+        // Upstream has failed to answer MAX_CONSECUTIVE_FAILURES times running,
+        // so stop paying a timeout per call for the rest of this request or
+        // command run.
+        if ($this->consecutiveFailures >= self::MAX_CONSECUTIVE_FAILURES) {
+            return null;
+        }
+
         try {
             $response = $call();
         } catch (Throwable $e) {
+            $this->consecutiveFailures++;
+
             Log::channel('market_data')->warning("Yahoo {$context} request failed", [
                 'ticker' => $ticker,
                 'error' => $e->getMessage(),
+                'consecutive_failures' => $this->consecutiveFailures,
+                'giving_up' => $this->consecutiveFailures >= self::MAX_CONSECUTIVE_FAILURES,
             ]);
 
             return null;
         }
+
+        // Any answer at all — including an error status — proves the connection
+        // works, so the run of failures is over. Without this reset, occasional
+        // blips spread across a long batch would eventually add up and stop it.
+        $this->consecutiveFailures = 0;
 
         if (! $response->successful()) {
             Log::channel('market_data')->warning("Yahoo {$context} request failed", [
