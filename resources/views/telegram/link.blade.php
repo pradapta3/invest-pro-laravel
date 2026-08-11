@@ -39,30 +39,56 @@
                 </div>
             </div>
 
-            @if ($user->telegram_link_code && $user->telegram_link_code_expires_at?->isFuture())
-                <div class="bg-indigo-50 rounded-lg p-4 mb-4">
-                    <div class="text-xs text-slate-500 mb-1">Kode Anda (berlaku {{ $user->telegram_link_code_expires_at->diffForHumans(null, true) }} lagi):</div>
-                    <div class="text-2xl font-extrabold tracking-widest font-num text-center mb-3">{{ $user->telegram_link_code }}</div>
-
-                    @if (config('services.telegram.bot_username'))
-                        <a href="https://t.me/{{ config('services.telegram.bot_username') }}?start={{ $user->telegram_link_code }}"
-                           target="_blank"
-                           class="block w-full text-center rounded-lg bg-sky-500 text-white font-bold py-2 hover:bg-sky-600 transition mb-2">
-                            <i class="fa-brands fa-telegram mr-1"></i>Buka Bot &amp; Hubungkan
-                        </a>
-                    @endif
-                    <p class="text-xs text-slate-500 text-center">
-                        Atau kirim manual ke bot: <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">/LINK {{ $user->telegram_link_code }}</code>
+            @if (! $botToken || ! $webhookSecret)
+                {{-- The code is redeemed by the bot receiving /LINK, so without a
+                     token and a webhook secret it can never be redeemed. Say so
+                     instead of handing out one that silently does nothing. --}}
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                    <div class="font-bold mb-1">Telegram belum dikonfigurasi di server</div>
+                    <p class="text-xs leading-relaxed">
+                        Menghubungkan akun butuh
+                        @if (! $botToken)<code class="bg-white px-1 rounded border border-amber-200">TELEGRAM_BOT_TOKEN</code>@endif
+                        @if (! $botToken && ! $webhookSecret) dan @endif
+                        @if (! $webhookSecret)<code class="bg-white px-1 rounded border border-amber-200">TELEGRAM_WEBHOOK_SECRET</code>@endif
+                        terisi di <code class="bg-white px-1 rounded border border-amber-200">.env</code>, lalu webhook didaftarkan dengan
+                        <code class="bg-white px-1 rounded border border-amber-200">php artisan idx:telegram-webhook</code>.
+                        Hubungi administrator.
                     </p>
                 </div>
-            @endif
+            @else
+                @if ($user->telegram_link_code && $user->telegram_link_code_expires_at?->isFuture())
+                    <div class="bg-indigo-50 rounded-lg p-4 mb-4">
+                        <div class="text-xs text-slate-500 mb-1">Kode Anda (berlaku {{ $user->telegram_link_code_expires_at->diffForHumans(null, true) }} lagi):</div>
+                        <div class="text-2xl font-extrabold tracking-widest font-num text-center mb-3">{{ $user->telegram_link_code }}</div>
 
-            <form method="POST" action="{{ route('telegram.link.generate') }}">
-                @csrf
-                <button type="submit" class="w-full rounded-lg bg-primary text-white font-bold py-2 hover:bg-indigo-700 transition">
-                    {{ $user->telegram_link_code && $user->telegram_link_code_expires_at?->isFuture() ? 'Buat Kode Baru' : 'Buat Kode Penghubung' }}
-                </button>
-            </form>
+                        @if ($botUsername)
+                            <a href="https://t.me/{{ $botUsername }}?start={{ $user->telegram_link_code }}"
+                               target="_blank"
+                               class="block w-full text-center rounded-lg bg-sky-500 text-white font-bold py-2 hover:bg-sky-600 transition mb-2">
+                                <i class="fa-brands fa-telegram mr-1"></i>Buka Bot &amp; Hubungkan
+                            </a>
+                        @endif
+                        <p class="text-xs text-slate-500 text-center">
+                            {{ $botUsername ? 'Atau kirim' : 'Kirim' }} manual ke bot
+                            @if ($botUsername)
+                                <b>&#64;{{ $botUsername }}</b>:
+                            @else
+                                {{-- Without TELEGRAM_BOT_USERNAME there is no link and no name to
+                                     show, so spell out that the bot has to be found by hand. --}}
+                                Telegram Anda (tanyakan namanya ke administrator):
+                            @endif
+                            <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">/LINK {{ $user->telegram_link_code }}</code>
+                        </p>
+                    </div>
+                @endif
+
+                <form method="POST" action="{{ route('telegram.link.generate') }}">
+                    @csrf
+                    <button type="submit" class="w-full rounded-lg bg-primary text-white font-bold py-2 hover:bg-indigo-700 transition">
+                        {{ $user->telegram_link_code && $user->telegram_link_code_expires_at?->isFuture() ? 'Buat Kode Baru' : 'Buat Kode Penghubung' }}
+                    </button>
+                </form>
+            @endif
         @endif
     </div>
 </div>

@@ -172,22 +172,33 @@ detik selama Caddy mengambil sertifikat.
 
 ## 6. Daftarkan webhook Telegram
 
-Baru bisa dilakukan setelah situs hidup di HTTPS (Telegram menolak endpoint
-tanpa sertifikat valid):
+Isi dulu `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_WEBHOOK_SECRET` di `.env`, lalu:
 
 ```bash
-TOKEN=$(grep '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)
-SECRET=$(grep '^TELEGRAM_WEBHOOK_SECRET=' .env | cut -d= -f2-)
-
-curl -X POST "https://api.telegram.org/bot${TOKEN}/setWebhook" \
-     -d "url=https://dompetijo.mbayar.my.id/telegram/webhook" \
-     -d "secret_token=${SECRET}"
-
-curl -s "https://api.telegram.org/bot${TOKEN}/getWebhookInfo"
+docker compose restart app queue scheduler
+docker compose exec app php artisan idx:telegram-webhook
 ```
 
-`getWebhookInfo` harus menunjukkan URL di atas dengan
-`"pending_update_count": 0` dan tanpa `last_error_message`.
+Perintah itu mengambil URL dari route (jadi selalu cocok dengan `APP_URL`) dan
+secret dari config, lalu melaporkan hasil `getWebhookInfo`. Ia menolak jalan
+pada dua keadaan yang menghasilkan webhook "terdaftar tapi diam":
+
+- **`TELEGRAM_WEBHOOK_SECRET` kosong** — `VerifyTelegramWebhookSecret`
+  memperlakukan secret kosong sebagai "tolak semua", jadi Telegram akan
+  mengirim update dan semuanya dibalas 403. Bot terlihat terhubung tapi tidak
+  pernah menjawab.
+- **`APP_URL` masih `http://`** — Telegram hanya menerima HTTPS.
+
+Untuk memeriksa tanpa mengubah apa pun, atau setelah ganti domain:
+
+```bash
+docker compose exec app php artisan idx:telegram-webhook --show
+docker compose exec app php artisan idx:telegram-webhook --delete
+```
+
+Selama Telegram belum dikonfigurasi, halaman **Pengaturan Telegram** di aplikasi
+menampilkan peringatan dan menyembunyikan tombol pembuat kode — kode itu hanya
+bisa ditukar lewat bot, jadi tanpa webhook ia tidak akan pernah berfungsi.
 
 ---
 

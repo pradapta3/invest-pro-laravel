@@ -21,7 +21,15 @@ class TelegramLinkController extends Controller
 {
     public function show(Request $request): View
     {
-        return view('telegram.link', ['user' => $request->user()]);
+        return view('telegram.link', [
+            'user' => $request->user(),
+            // Linking only completes when the bot receives /LINK, which needs a
+            // token and a registered webhook. Without them the page would hand
+            // out a code that can never be redeemed and give no hint why.
+            'botToken' => filled(config('services.telegram.bot_token')),
+            'webhookSecret' => filled(config('services.telegram.webhook_secret')),
+            'botUsername' => config('services.telegram.bot_username'),
+        ]);
     }
 
     public function generate(Request $request): RedirectResponse
