@@ -6,6 +6,7 @@ use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -152,12 +153,14 @@ class YahooFinanceClient
     public function checkAuthentication(): bool
     {
         try {
-            $crumb = $this->crumb();
-        } catch (\Throwable) {
+            // crumb() validates and throws on anything unusable, so reaching
+            // here at all means the handshake produced a real token.
+            $this->crumb();
+        } catch (Throwable) {
             return false;
         }
 
-        return $crumb !== '' && strlen($crumb) <= 20 && ! str_contains($crumb, '<html');
+        return true;
     }
 
     public function normalizeTicker(string $ticker): string
@@ -176,6 +179,16 @@ class YahooFinanceClient
         return str_contains($ticker, '.JK') ? $ticker : $ticker.'.JK';
     }
 
+    /**
+     * A crumb is a short opaque token. Anything else — an empty body, or the
+     * HTML error page Yahoo serves when the session cookie was rejected — is
+     * not one, and caching it would poison every later call on this instance.
+     */
+    private function looksLikeCrumb(string $candidate): bool
+    {
+        return $candidate !== '' && strlen($candidate) <= 20 && ! str_contains($candidate, '<html');
+    }
+
     private function crumb(): string
     {
         if ($this->crumb !== null) {
@@ -185,7 +198,19 @@ class YahooFinanceClient
         $response = $this->authenticatedClient()
             ->get(config('services.yahoo_finance.crumb_base_url').'/v1/test/getcrumb');
 
-        $this->crumb = trim($response->body());
+        $crumb = trim($response->body());
+
+        // Only a plausible crumb is remembered. Throwing on the rest means the
+        // failure reaches attempt(), which logs it and counts it toward the
+        // consecutive-failure limit rather than letting the caller carry on
+        // with a token that cannot work — previously a single bad handshake
+        // was cached for the life of the instance, so a batch over hundreds of
+        // tickers returned nothing at all and still exited successfully.
+        if (! $this->looksLikeCrumb($crumb)) {
+            throw new RuntimeException('Yahoo returned no usable crumb (HTTP '.$response->status().').');
+        }
+
+        $this->crumb = $crumb;
 
         return $this->crumb;
     }
@@ -196,7 +221,7 @@ class YahooFinanceClient
             return $this->cookieJar;
         }
 
-        $this->cookieJar = new CookieJar;
+        $jar = new CookieJar;
 
         // Prime the jar by visiting Yahoo's auth-cookie endpoint. This
         // must pass the `cookies` option itself (not just $this->client())
@@ -206,8 +231,19 @@ class YahooFinanceClient
         // request went out with no session cookie at all, so Yahoo's
         // getcrumb endpoint replied with {"error":{"code":"Unauthorized",
         // "description":"Invalid Cookie"}} instead of a real crumb.
-        $this->client()->withOptions(['cookies' => $this->cookieJar])
+        $this->client()->withOptions(['cookies' => $jar])
             ->get(config('services.yahoo_finance.auth_cookie_url'));
+
+        // Assigned only once priming actually yielded cookies. The old code
+        // assigned the empty jar first, so a priming request that failed left
+        // a non-null but useless jar that was never rebuilt — every later
+        // authenticated call went out unauthenticated and quietly returned
+        // nothing.
+        if ($jar->count() === 0) {
+            throw new RuntimeException('Yahoo returned no session cookie.');
+        }
+
+        $this->cookieJar = $jar;
 
         return $this->cookieJar;
     }
