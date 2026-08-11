@@ -46,7 +46,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans pb-16">
 
-<header class="sticky top-0 z-30 bg-white border-b border-slate-200" x-data="{ nav: false }">
+<header class="sticky top-0 z-30 bg-white border-b border-slate-200">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div class="flex items-center gap-3 md:gap-4 min-w-0">
             <a href="{{ route('dashboard') }}" class="text-lg md:text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent whitespace-nowrap">
@@ -77,17 +77,21 @@
 
         {{-- Ten action buttons in one non-wrapping row were what forced the whole
              page wider than a phone, so the browser zoomed the entire layout out
-             to fit. Below md they collapse behind this toggle instead. --}}
-        <button type="button" @click="nav = !nav" :aria-expanded="nav" aria-label="Menu"
+             to fit. Below md they collapse behind this toggle instead.
+
+             Driven by the inline script below rather than Alpine on purpose.
+             Alpine arrives from a third-party CDN, and when that is blocked or
+             slow this button is the only way to reach portfolio, alerts, admin
+             and — worst of all — logout on a phone. The rest of the header's
+             dropdowns still use Alpine; losing those only costs a menu. --}}
+        <button type="button" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu"
                 class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
-            <i class="fa-solid" :class="nav ? 'fa-xmark' : 'fa-bars'"></i>
+            <i id="nav-toggle-icon" class="fa-solid fa-bars"></i>
         </button>
 
         {{-- `hidden md:flex` is the no-JavaScript baseline: collapsed on a phone,
-             always open from md up. Alpine only ever adds !flex to reveal it, so
-             the header still works if Alpine is slow or blocked. --}}
-        <nav class="hidden md:flex w-full md:w-auto flex-wrap items-center gap-2 text-sm font-semibold"
-             :class="{ '!flex': nav }">
+             always open from md up. The toggle only ever adds !flex to reveal it. --}}
+        <nav id="main-nav" class="hidden md:flex w-full md:w-auto flex-wrap items-center gap-2 text-sm font-semibold">
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="inline-flex items-center gap-2 rounded-lg bg-primary text-white px-3 py-2 hover:bg-indigo-700 transition">
@@ -163,6 +167,29 @@
         </nav>
     </div>
 </header>
+
+{{-- Inline and un-deferred so the mobile menu works from first paint, with no
+     dependency on any external script. --}}
+<script>
+(function () {
+    var btn = document.getElementById('nav-toggle');
+    var nav = document.getElementById('main-nav');
+    var icon = document.getElementById('nav-toggle-icon');
+    if (!btn || !nav) return;
+
+    btn.addEventListener('click', function () {
+        // Tailwind's !flex beats the `hidden` that keeps the row collapsed below
+        // md; above md the md:flex in the class list already wins, so toggling
+        // this is a no-op there.
+        var open = nav.classList.toggle('!flex');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (icon) {
+            icon.classList.toggle('fa-bars', !open);
+            icon.classList.toggle('fa-xmark', open);
+        }
+    });
+})();
+</script>
 
 <main class="max-w-7xl mx-auto px-4 py-6">
     @if (session('status'))
