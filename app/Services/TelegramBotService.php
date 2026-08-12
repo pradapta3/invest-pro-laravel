@@ -114,14 +114,35 @@ class TelegramBotService
             return false;
         }
 
-        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", [
+        $payload = [
             'chat_id' => $chatId,
             'text' => $text,
-            'parse_mode' => $parseMode,
             'disable_web_page_preview' => true,
-        ]);
+        ];
+
+        if ($parseMode !== '') {
+            $payload['parse_mode'] = $parseMode;
+        }
+
+        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
 
         if (! $response->successful() || ! $response->json('ok')) {
+            $description = (string) $response->json('description');
+
+            // Telegram rejects the entire message when parse_mode is set and
+            // the text has an unbalanced entity — one stray '*' or '_' and the
+            // user gets nothing at all. Since some of this text is written by
+            // Gemini, that is not a hypothetical. Resend unformatted rather
+            // than drop the message.
+            if ($parseMode !== '' && stripos($description, 'parse entities') !== false) {
+                Log::channel('telegram_bot')->info('Telegram rejected the formatting; resending as plain text', [
+                    'chat_id' => $chatId,
+                    'parse_mode' => $parseMode,
+                ]);
+
+                return $this->sendMessage($chatId, $text, '');
+            }
+
             Log::channel('telegram_bot')->warning('Telegram sendMessage failed', [
                 'chat_id' => $chatId,
                 'response' => $response->json(),
@@ -466,8 +487,12 @@ class TelegramBotService
         $price = StockPrice::query()->with('stockRef')->find($ticker.'.JK');
 
         if ($price === null || $price->stockRef === null) {
-            $ai = $this->ai->analyzeUnknownTicker($ticker);
-            $this->sendMessage($chatId, "❌ Data <b>{$ticker}</b> tidak ditemukan.\n\n🧠 <b>AI:</b> {$ai}", 'Markdown');
+            // HTML markup, so parse_mode must be HTML — sent as 'Markdown' the
+            // <b> tags were shown to the user as literal text. The AI half is
+            // escaped because it is the one part of this string the app didn't
+            // write, and a '<' in it would break the parse.
+            $ai = e($this->ai->analyzeUnknownTicker($ticker));
+            $this->sendMessage($chatId, "❌ Data <b>{$ticker}</b> tidak ditemukan.\n\n🧠 <b>AI:</b> {$ai}", 'HTML');
 
             return;
         }

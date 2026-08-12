@@ -56,6 +56,11 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 20),
+        // Short, decisive buy/sell reads rather than essays: low temperature
+        // because this is meant to summarise numbers it was given, and a token
+        // cap because the answer lands in a Telegram bubble or a modal.
+        'temperature' => (float) env('GEMINI_TEMPERATURE', 0.3),
+        'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 800),
     ],
 
     /*
