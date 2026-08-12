@@ -114,6 +114,22 @@ class TelegramBotService
             return false;
         }
 
+        // Telegram caps a message at 4096 characters and rejects anything
+        // longer outright — the user gets nothing rather than a long message.
+        // AI replies are the only text here that can reach that, so split
+        // instead of losing it.
+        $chunks = $this->splitForTelegram($text);
+
+        if (count($chunks) > 1) {
+            $ok = true;
+
+            foreach ($chunks as $chunk) {
+                $ok = $this->sendMessage($chatId, $chunk, $parseMode) && $ok;
+            }
+
+            return $ok;
+        }
+
         $payload = [
             'chat_id' => $chatId,
             'text' => $text,
@@ -152,6 +168,49 @@ class TelegramBotService
         }
 
         return true;
+    }
+
+    /**
+     * Break text into pieces Telegram will accept, preferring line breaks so
+     * a split lands between lines rather than inside one — the digests build
+     * their HTML markup one line at a time, so a line boundary is also
+     * guaranteed not to be inside a tag. Falls back to the last space, and
+     * finally to a hard cut for text with neither.
+     *
+     * @return array<int, string>
+     */
+    private function splitForTelegram(string $text): array
+    {
+        $limit = 4096;
+
+        if (mb_strlen($text) <= $limit) {
+            return [$text];
+        }
+
+        $chunks = [];
+
+        while (mb_strlen($text) > $limit) {
+            $window = mb_substr($text, 0, $limit);
+
+            $cut = mb_strrpos($window, "\n");
+
+            if ($cut === false || $cut < (int) ($limit / 2)) {
+                $cut = mb_strrpos($window, ' ');
+            }
+
+            if ($cut === false || $cut === 0) {
+                $cut = $limit;
+            }
+
+            $chunks[] = rtrim(mb_substr($text, 0, $cut));
+            $text = ltrim(mb_substr($text, $cut));
+        }
+
+        if ($text !== '') {
+            $chunks[] = $text;
+        }
+
+        return $chunks;
     }
 
     /**

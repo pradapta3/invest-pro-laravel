@@ -56,11 +56,19 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 20),
-        // Short, decisive buy/sell reads rather than essays: low temperature
-        // because this is meant to summarise numbers it was given, and a token
-        // cap because the answer lands in a Telegram bubble or a modal.
+        // Low temperature because this is meant to summarise numbers it was
+        // given rather than write prose.
         'temperature' => (float) env('GEMINI_TEMPERATURE', 0.3),
-        'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 800),
+        // Brevity is the prompt's job ("maksimal 3 kalimat"); this is only a
+        // safety ceiling, so it is set well clear of a normal answer. Sized
+        // tightly it does not shorten the reply, it truncates it mid-sentence
+        // — and on a reasoning model the reasoning is drawn from this same
+        // budget, which can leave nothing for the answer at all.
+        'max_output_tokens' => (int) env('GEMINI_MAX_OUTPUT_TOKENS', 2048),
+        // 0 disables thinking, so the whole budget above goes to the answer.
+        // Negative omits thinkingConfig from the request entirely, for models
+        // predating the reasoning generation, which reject the field.
+        'thinking_budget' => (int) env('GEMINI_THINKING_BUDGET', 0),
     ],
 
     /*

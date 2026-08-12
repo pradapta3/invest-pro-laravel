@@ -29,6 +29,29 @@ class AiGenerativeService
         $model = config('services.gemini.model');
         $url = config('services.gemini.base_url')."/models/{$model}:generateContent";
 
+        // Left unset, the default temperature is tuned for open-ended writing.
+        // These answers summarise numbers the app already computed, so ask for
+        // the least improvisation the model will give.
+        $generationConfig = [
+            'temperature' => (float) config('services.gemini.temperature'),
+            'maxOutputTokens' => (int) config('services.gemini.max_output_tokens'),
+        ];
+
+        // Reasoning models spend tokens thinking before they write, and those
+        // tokens come out of maxOutputTokens — the same budget as the answer.
+        // So a cap sized for the answer alone gets eaten by the reasoning and
+        // the reply arrives cut off, or empty with finishReason MAX_TOKENS.
+        // Length here is controlled by the prompt ("maksimal 3 kalimat"), not
+        // by a hard cut mid-sentence, so budget 0 (no thinking) is the right
+        // default. Set GEMINI_THINKING_BUDGET to a negative number to omit the
+        // field entirely — models older than the reasoning generation reject
+        // it with a 400.
+        $thinkingBudget = (int) config('services.gemini.thinking_budget');
+
+        if ($thinkingBudget >= 0) {
+            $generationConfig['thinkingConfig'] = ['thinkingBudget' => $thinkingBudget];
+        }
+
         try {
             $response = Http::timeout(config('services.gemini.timeout'))
                 // The key goes in a header, not ?key= in the URL. Guzzle puts the
@@ -42,15 +65,7 @@ class AiGenerativeService
                     'contents' => [
                         ['parts' => [['text' => $prompt]]],
                     ],
-                    // Left unset, output length is bounded only by the model's
-                    // maximum, and the default temperature is tuned for
-                    // open-ended writing. These answers are short buy/sell reads
-                    // shown in a Telegram bubble or a modal, so cap the length and
-                    // ask for the least improvisation the model will give.
-                    'generationConfig' => [
-                        'temperature' => (float) config('services.gemini.temperature'),
-                        'maxOutputTokens' => (int) config('services.gemini.max_output_tokens'),
-                    ],
+                    'generationConfig' => $generationConfig,
                 ]);
         } catch (Throwable $e) {
             // Detail to the log, not to whoever asked: the message can carry the
@@ -79,10 +94,24 @@ class AiGenerativeService
             return '⚠️ Permintaan ditolak filter keamanan AI.';
         }
 
-        $text = $response->json('candidates.0.content.parts.0.text');
+        $text = $this->joinParts($response->json('candidates.0.content.parts'));
         $finishReason = $response->json('candidates.0.finishReason');
 
         if ($text === null) {
+            // An empty answer whose budget ran out is not "no response": the
+            // model was still working when it hit the ceiling. Distinguish it,
+            // because the fix is a bigger GEMINI_MAX_OUTPUT_TOKENS (or a
+            // thinking budget of 0), not a retry.
+            if ($finishReason === 'MAX_TOKENS') {
+                Log::warning('Gemini used its whole output budget without producing text', [
+                    'max_output_tokens' => $generationConfig['maxOutputTokens'],
+                    'thinking_budget' => $generationConfig['thinkingConfig']['thinkingBudget'] ?? 'unset',
+                    'usage' => $response->json('usageMetadata'),
+                ]);
+
+                return '⚠️ Jawaban AI habis di batas panjang sebelum sempat ditulis.';
+            }
+
             Log::warning('Gemini returned no text', ['finish_reason' => $finishReason]);
 
             return '⚠️ AI tidak merespon.';
@@ -97,6 +126,36 @@ class AiGenerativeService
         }
 
         return $text;
+    }
+
+    /**
+     * A candidate's answer is a *list* of parts, not one. Reading only
+     * parts[0] — which is what this did — silently dropped everything after
+     * the first, so a long answer arrived cut off at an arbitrary point with
+     * finishReason STOP, i.e. looking complete. Parts flagged as thoughts are
+     * the model's reasoning, not its answer, and are skipped.
+     *
+     * @param  array<int, array<string, mixed>>|null  $parts
+     */
+    private function joinParts(?array $parts): ?string
+    {
+        if (empty($parts)) {
+            return null;
+        }
+
+        $texts = [];
+
+        foreach ($parts as $part) {
+            if (($part['thought'] ?? false) === true) {
+                continue;
+            }
+
+            if (isset($part['text']) && $part['text'] !== '') {
+                $texts[] = $part['text'];
+            }
+        }
+
+        return empty($texts) ? null : implode('', $texts);
     }
 
     /**
