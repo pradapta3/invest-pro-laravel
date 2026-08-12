@@ -20,6 +20,7 @@
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
             tailwind.config = {
+                darkMode: 'class',
                 theme: {
                     extend: {
                         colors: { primary: '#4f46e5' },
@@ -34,6 +35,8 @@
         <style>.font-num { font-family: 'Roboto Mono', monospace; }</style>
     @endif
 
+    @include('partials.theme')
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -41,6 +44,37 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
+
+    <script>
+    // Chart.js paints its axis labels and gridlines onto a canvas, so no CSS
+    // reaches them: left alone they stay near-black on a dark card. Set here,
+    // before any page builds its charts, and re-applied on the theme-changed
+    // event so a mid-session switch does not need a reload.
+    //
+    // Charts are found by walking the canvases rather than by each view
+    // registering itself, so no chart page has to know about this.
+    (function () {
+        function applyChartTheme() {
+            if (!window.Chart) return;
+
+            var dark = document.documentElement.classList.contains('dark');
+
+            Chart.defaults.color = dark ? '#a3b0c8' : '#64748b';
+            Chart.defaults.borderColor = dark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(100, 116, 139, 0.15)';
+        }
+
+        applyChartTheme();
+
+        window.addEventListener('theme-changed', function () {
+            applyChartTheme();
+
+            document.querySelectorAll('canvas').forEach(function (canvas) {
+                var chart = window.Chart && Chart.getChart(canvas);
+                if (chart) chart.update();
+            });
+        });
+    })();
+    </script>
 
     @stack('head')
 </head>
@@ -84,6 +118,11 @@
              slow this button is the only way to reach portfolio, alerts, admin
              and — worst of all — logout on a phone. The rest of the header's
              dropdowns still use Alpine; losing those only costs a menu. --}}
+        {{-- Outside the collapsing nav below md, so the fix for a screen that is
+             too bright does not itself require finding it behind a menu. From
+             md up the nav is always open and the copy inside it is used. --}}
+        <x-theme-toggle class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition" />
+
         <button type="button" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu"
                 class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
             <i id="nav-toggle-icon" class="fa-solid fa-bars"></i>
@@ -172,6 +211,10 @@
                     <i class="fa-solid fa-user-shield"></i>
                 </a>
             @endif
+
+            {{-- md and up only: below that the copy beside the hamburger, which
+                 is outside this collapsing nav, is the one on screen. --}}
+            <x-theme-toggle class="hidden md:inline-flex items-center justify-center w-10 h-10 rounded-lg transition bg-white border border-slate-200 text-slate-500 hover:bg-slate-50" />
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf

@@ -43,6 +43,20 @@ function getColor(val) {
     return '#475569';
 }
 
+// The treemap's own chrome — the gaps between tiles and the sector header
+// strip — is drawn onto a canvas, so it is the one part of this page CSS
+// cannot reach. Left at white it turns into a grid of bright lines on a dark
+// page, which is exactly the glare night mode is meant to remove.
+function chartChrome() {
+    var dark = document.documentElement.classList.contains('dark');
+
+    return {
+        gap: dark ? '#0b1120' : '#fff',
+        headerText: dark ? '#a3b0c8' : '#555',
+        headerBg: dark ? '#1b2740' : '#e2e8f0',
+    };
+}
+
 var el = document.getElementById('heatmapChart');
 if (el) {
     var chart = echarts.init(el);
@@ -50,6 +64,8 @@ if (el) {
         name: sector.name,
         children: sector.children.map(s => ({ name: s.name, value: s.value, itemStyle: { color: getColor(s.value[1]) } })),
     }));
+
+    var chrome = chartChrome();
 
     chart.setOption({
         tooltip: {
@@ -66,15 +82,32 @@ if (el) {
             type: 'treemap', data: formatted, width: '100%', height: '100%',
             roam: 'move', nodeClick: false, breadcrumb: { show: false },
             label: { show: true, formatter: (p) => p.name + '\n' + p.data.value[1] + '%', fontSize: 11, fontWeight: 'bold', color: '#fff' },
-            itemStyle: { borderColor: '#fff', borderWidth: 1, gapWidth: 1 },
+            itemStyle: { borderColor: chrome.gap, borderWidth: 1, gapWidth: 1 },
             levels: [
                 { itemStyle: { borderWidth: 0, gapWidth: 1 } },
-                { itemStyle: { borderColor: '#fff', borderWidth: 3, gapWidth: 3 }, upperLabel: { show: true, height: 20, fontSize: 10, color: '#555', backgroundColor: '#e2e8f0', fontWeight: 'bold' } },
+                { itemStyle: { borderColor: chrome.gap, borderWidth: 3, gapWidth: 3 }, upperLabel: { show: true, height: 20, fontSize: 10, color: chrome.headerText, backgroundColor: chrome.headerBg, fontWeight: 'bold' } },
                 { itemStyle: { borderWidth: 1, gapWidth: 1 } },
             ],
         }],
     });
     window.addEventListener('resize', () => chart.resize());
+
+    window.addEventListener('theme-changed', function () {
+        var next = chartChrome();
+
+        // Merged rather than re-set: setOption patches by default, so the data
+        // and the tile colours computed above are left untouched.
+        chart.setOption({
+            series: [{
+                itemStyle: { borderColor: next.gap },
+                levels: [
+                    { itemStyle: { borderWidth: 0, gapWidth: 1 } },
+                    { itemStyle: { borderColor: next.gap, borderWidth: 3, gapWidth: 3 }, upperLabel: { show: true, height: 20, fontSize: 10, color: next.headerText, backgroundColor: next.headerBg, fontWeight: 'bold' } },
+                    { itemStyle: { borderWidth: 1, gapWidth: 1 } },
+                ],
+            }],
+        });
+    });
     chart.on('click', (params) => { if (params.data?.name) window.location.href = `/stocks/${params.data.name}`; });
 }
 </script>

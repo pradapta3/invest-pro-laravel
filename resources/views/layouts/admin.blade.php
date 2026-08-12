@@ -14,9 +14,11 @@
     @else
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
-            tailwind.config = { theme: { extend: { colors: { primary: '#4f46e5' }, fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] } } } };
+            tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#4f46e5' }, fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] } } } };
         </script>
     @endif
+
+    @include('partials.theme')
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     {{-- Kept for any Alpine component added to an admin page later: without it
          x-cloak elements paint before Alpine binds. The drawer below no longer
@@ -36,6 +38,10 @@
         </button>
         <span class="text-base font-extrabold">DOMPET IJO</span>
         <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Admin</span>
+
+        {{-- Reachable without opening the drawer, for the same reason as on the
+             main header: the sidebar copy is behind a menu on a phone. --}}
+        <x-theme-toggle class="ml-auto inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-800 transition" />
     </div>
 
     {{-- Backdrop, mobile only. --}}
@@ -69,6 +75,9 @@
             </a>
         </nav>
         <div class="p-3 border-t border-slate-800 space-y-1">
+            <x-theme-toggle
+                labelled
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 text-left" />
             <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800">
                 <i class="fa-solid fa-arrow-left w-4"></i> Ke Aplikasi
             </a>
