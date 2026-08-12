@@ -28,8 +28,32 @@
             <textarea name="description" rows="2" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ old('description', $plan->description) }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-bold text-slate-500 mb-1">Fitur (satu per baris)</label>
-            <textarea name="features" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Akses semua screener&#10;Backtest tanpa batas&#10;Broadcast Telegram">{{ old('features', is_array($plan->features) ? implode("\n", $plan->features) : '') }}</textarea>
+            <label class="block text-xs font-bold text-slate-500 mb-2">Fitur yang termasuk paket ini</label>
+            @php
+                $selected = old('features', is_array($plan->features) ? $plan->features : []);
+                $known = array_keys(config('subscription.features'));
+                $legacy = array_diff(is_array($plan->features) ? $plan->features : [], $known);
+            @endphp
+            {{-- An unchecked box is a real restriction: the matching routes
+                 answer 403 for subscribers on this plan (EnsurePlanFeature). --}}
+            <div class="grid sm:grid-cols-2 gap-2">
+                @foreach (config('subscription.features') as $key => $label)
+                    <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                        <input type="checkbox" name="features[]" value="{{ $key }}" class="rounded"
+                               @checked(in_array($key, (array) $selected, true))>
+                        {{ $label }}
+                    </label>
+                @endforeach
+            </div>
+            @if ($legacy !== [])
+                {{-- Plans predate the checkboxes and hold free-text bullets. Until
+                     at least one box is ticked the plan is not restricted at all,
+                     so nobody loses access just because this shipped. --}}
+                <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                    Paket ini masih memakai daftar fitur lama ({{ implode(', ', $legacy) }}) dan
+                    <b>belum membatasi apa pun</b>. Centang di atas lalu simpan untuk mulai membatasi.
+                </p>
+            @endif
         </div>
         <div>
             <label class="block text-xs font-bold text-slate-500 mb-1">Urutan Tampil</label>

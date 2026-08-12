@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsurePlanFeature;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\VerifyTelegramWebhookSecret;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'telegram.webhook' => VerifyTelegramWebhookSecret::class,
             'subscription.active' => EnsureSubscriptionActive::class,
+            'plan' => EnsurePlanFeature::class,
             'admin' => EnsureUserIsAdmin::class,
         ]);
     })

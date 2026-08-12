@@ -43,7 +43,10 @@
                     @if (is_array($plan->features))
                         <ul class="text-xs text-slate-500 mt-2 space-y-1">
                             @foreach ($plan->features as $feature)
-                                <li><i class="fa-solid fa-check text-emerald-500 mr-1"></i>{{ $feature }}</li>
+                                {{-- A key resolves to its label; anything else is a
+                                     free-text bullet from before the checkboxes and
+                                     is shown as written. --}}
+                                <li><i class="fa-solid fa-check text-emerald-500 mr-1"></i>{{ config('subscription.features.'.$feature, $feature) }}</li>
                             @endforeach
                         </ul>
                     @endif

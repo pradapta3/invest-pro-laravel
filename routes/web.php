@@ -51,17 +51,17 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
     Route::post('/portfolio/trade', [PortfolioController::class, 'trade'])->name('portfolio.trade');
     Route::post('/portfolio/deposit', [PortfolioController::class, 'deposit'])->name('portfolio.deposit');
 
-    Route::get('/scanner/quant', [ScannerController::class, 'quant'])->name('scanner.quant');
-    Route::get('/scanner/titan', [TitanScanController::class, 'index'])->name('scanner.titan');
+    Route::get('/scanner/quant', [ScannerController::class, 'quant'])->middleware('plan:scanner')->name('scanner.quant');
+    Route::get('/scanner/titan', [TitanScanController::class, 'index'])->middleware('plan:scanner')->name('scanner.titan');
 
-    Route::get('/heatmap', [HeatmapController::class, 'index'])->name('heatmap.index');
-    Route::get('/seasonality', [SeasonalityController::class, 'show'])->name('seasonality.show');
-    Route::get('/similarity', [SimilarityController::class, 'show'])->name('similarity.show');
+    Route::get('/heatmap', [HeatmapController::class, 'index'])->middleware('plan:heatmap')->name('heatmap.index');
+    Route::get('/seasonality', [SeasonalityController::class, 'show'])->middleware('plan:pattern')->name('seasonality.show');
+    Route::get('/similarity', [SimilarityController::class, 'show'])->middleware('plan:pattern')->name('similarity.show');
     Route::get('/news', [NewsController::class, 'index'])->name('news.index');
-    Route::get('/tools', [ToolsController::class, 'index'])->name('tools.index');
-    Route::get('/backtest', [BacktestController::class, 'index'])->name('backtest.index');
+    Route::get('/tools', [ToolsController::class, 'index'])->middleware('plan:tools')->name('tools.index');
+    Route::get('/backtest', [BacktestController::class, 'index'])->middleware('plan:backtest')->name('backtest.index');
 
-    Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->name('telegram.link');
+    Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->middleware('plan:telegram')->name('telegram.link');
     Route::post('/telegram/link', [TelegramLinkController::class, 'generate'])->name('telegram.link.generate');
     Route::delete('/telegram/link', [TelegramLinkController::class, 'destroy'])->name('telegram.link.destroy');
 

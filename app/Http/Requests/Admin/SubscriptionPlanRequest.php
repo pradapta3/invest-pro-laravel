@@ -24,7 +24,8 @@ class SubscriptionPlanRequest extends FormRequest
             'slug' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('subscription_plans', 'slug')->ignore($planId)],
             'price_per_month' => ['required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
-            'features' => ['nullable', 'string'],
+            'features' => ['nullable', 'array'],
+            'features.*' => ['string', 'in:'.implode(',', array_keys(config('subscription.features')))],
             'is_active' => ['sometimes', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ];
@@ -39,11 +40,13 @@ class SubscriptionPlanRequest extends FormRequest
     public function normalizedData(): array
     {
         $data = $this->validated();
-        $data['features'] = collect(explode("\n", (string) ($data['features'] ?? '')))
-            ->map(fn ($line) => trim($line))
-            ->filter()
-            ->values()
-            ->all();
+        // Feature keys from the checkbox group, kept in the canonical order of
+        // config/subscription.php so the plan cards read the same everywhere.
+        $ticked = (array) ($data['features'] ?? []);
+        $data['features'] = array_values(array_filter(
+            array_keys(config('subscription.features')),
+            fn (string $key) => in_array($key, $ticked, true),
+        ));
         $data['is_active'] = $this->boolean('is_active');
         $data['sort_order'] = $data['sort_order'] ?? 0;
 

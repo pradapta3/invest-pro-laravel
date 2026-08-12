@@ -90,6 +90,32 @@ class User extends Authenticatable
             ->first();
     }
 
+    /**
+     * Whether the user's current plan includes a feature key from
+     * config/subscription.php (see EnsurePlanFeature).
+     */
+    public function planAllows(string $feature): bool
+    {
+        if ($this->is_admin) {
+            return true;
+        }
+
+        $planFeatures = $this->currentSubscription()?->plan?->features ?? [];
+        $known = array_keys(config('subscription.features', []));
+        $selected = array_values(array_intersect($planFeatures, $known));
+
+        // Plans created before this existed hold free-text marketing bullets
+        // rather than feature keys. Enforcing against those would lock every
+        // existing subscriber out of everything the moment this deploys, so a
+        // plan with no recognised key stays unrestricted — it starts gating
+        // only once an admin actually ticks the boxes.
+        if ($selected === []) {
+            return true;
+        }
+
+        return in_array($feature, $selected, true);
+    }
+
     public function hasActiveSubscription(): bool
     {
         return $this->currentSubscription()?->isCurrentlyActive() ?? false;

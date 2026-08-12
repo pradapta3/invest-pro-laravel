@@ -98,13 +98,22 @@
                     <i class="fa-solid fa-robot"></i> Analisa
                 </button>
                 <div x-show="open" x-cloak class="absolute right-0 mt-2 w-48 rounded-xl bg-white shadow-lg border border-slate-200 py-2 z-40">
-                    <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i>Titan Sniper</a>
-                    <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-layer-group text-primary mr-2"></i>Quant Alpha</a>
-                    <hr class="my-1 border-slate-100">
-                    <a href="{{ route('seasonality.show') }}" class="block px-4 py-2 hover:bg-slate-50">Seasonality</a>
-                    <a href="{{ route('similarity.show') }}" class="block px-4 py-2 hover:bg-slate-50">Ghost Pattern</a>
-                    <hr class="my-1 border-slate-100">
-                    <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-flask mr-2 text-emerald-600"></i>Backtest</a>
+                    {{-- Each group is hidden unless the subscriber's plan covers it,
+                         so the menu never offers a link that answers 403. The
+                         separators live inside the groups for the same reason. --}}
+                    @if (auth()->user()?->planAllows('scanner'))
+                        <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i>Titan Sniper</a>
+                        <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-layer-group text-primary mr-2"></i>Quant Alpha</a>
+                    @endif
+                    @if (auth()->user()?->planAllows('pattern'))
+                        @if (auth()->user()?->planAllows('scanner'))<hr class="my-1 border-slate-100">@endif
+                        <a href="{{ route('seasonality.show') }}" class="block px-4 py-2 hover:bg-slate-50">Seasonality</a>
+                        <a href="{{ route('similarity.show') }}" class="block px-4 py-2 hover:bg-slate-50">Ghost Pattern</a>
+                    @endif
+                    @if (auth()->user()?->planAllows('backtest'))
+                        @if (auth()->user()?->planAllows('scanner') || auth()->user()?->planAllows('pattern'))<hr class="my-1 border-slate-100">@endif
+                        <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-flask mr-2 text-emerald-600"></i>Backtest</a>
+                    @endif
                 </div>
             </div>
 
@@ -115,24 +124,30 @@
                 </button>
             @endif
 
-            <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
+            @if (auth()->user()?->planAllows('telegram'))
+                <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
                class="inline-flex items-center justify-center w-10 h-10 rounded-lg border transition {{ auth()->user()?->hasLinkedTelegram() ? 'bg-white border-slate-200 text-sky-500 hover:bg-slate-50' : 'bg-white border-amber-300 text-amber-500 hover:bg-slate-50' }}">
                 <i class="fa-brands fa-telegram"></i>
             </a>
+            @endif
 
             <a href="{{ route('alerts.index') }}" title="Price Alert" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-bell"></i>
             </a>
 
+            @if (auth()->user()?->planAllows('heatmap'))
             <a href="{{ route('heatmap.index') }}" title="Market Map" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-map"></i>
             </a>
+            @endif
             <a href="{{ route('news.index') }}" title="News" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-red-500 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-newspaper"></i>
             </a>
+            @if (auth()->user()?->planAllows('tools'))
             <a href="{{ route('tools.index') }}" title="Tools" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-primary hover:bg-slate-50 transition">
                 <i class="fa-solid fa-calculator"></i>
             </a>
+            @endif
             <a href="{{ route('portfolio.index') }}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-200 text-emerald-600 px-3 py-2 hover:bg-slate-50 transition">
                 <i class="fa-solid fa-wallet"></i> Porto
             </a>
