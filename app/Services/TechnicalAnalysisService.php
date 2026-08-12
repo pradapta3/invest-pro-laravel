@@ -557,46 +557,59 @@ class TechnicalAnalysisService
         // catch defaults. See StockPrice::hasIndicators().
         $hasIndicators = $price->hasIndicators();
 
-        $trend = 0;
-        if ($hasIndicators && $close > $ma20) {
-            $trend += $w['trend_above_ma20'];
+        // Awards are graded, not all-or-nothing. Every weight here is a
+        // multiple of five and every rule used to be a yes/no, so the 0-100
+        // scale could only ever produce 21 values: sorting 900 emiten put them
+        // in 21 buckets, and a stock 0.1% above its MA20 scored exactly the
+        // same as one 12% above. ramp() gives linear credit between the point
+        // where a reading starts to count and the point where it earns the
+        // whole award, clamping outside. The old thresholds survive as the
+        // lower endpoints, so what counts is unchanged — only how finely.
+        $trend = 0.0;
+        if ($hasIndicators && $ma20 > 0) {
+            $trend += $this->ramp($close / $ma20 - 1, 0.0, $w['ma20_premium_full'], $w['trend_above_ma20']);
         }
-        if ($vwap > 0 && $close > $vwap) {
-            $trend += $w['trend_above_vwap'];
+        if ($vwap > 0) {
+            $trend += $this->ramp($close / $vwap - 1, 0.0, $w['vwap_premium_full'], $w['trend_above_vwap']);
         }
 
-        $momentum = 0;
+        $momentum = 0.0;
         if ($hasIndicators) {
-            if ($macdHist > 0) {
-                $momentum += $w['momentum_macd_positive'];
+            if ($close > 0) {
+                $momentum += $this->ramp($macdHist / $close, 0.0, $w['macd_hist_ratio_full'], $w['momentum_macd_positive']);
             }
-            if ($rsi >= $w['rsi_sweet_spot_min'] && $rsi <= $w['rsi_sweet_spot_max']) {
-                $momentum += $w['momentum_rsi_sweet_spot'];
-            } elseif ($rsi < $w['rsi_oversold_max']) {
-                // Oversold only. This used to read `$rsi > 70 || $rsi < 30`,
-                // paying the same credit for both ends, so a stock at RSI 85
-                // scored above one at RSI 45 — on a composite whose top band
-                // is labelled STRONG BUY. Overbought is the risk this score
-                // should be flagging, not rewarding, so it now earns nothing.
-                $momentum += $w['momentum_rsi_oversold'];
+
+            if ($rsi <= $w['rsi_sweet_spot_max']) {
+                // Full credit inside the sweet spot, fading in as the stock
+                // approaches it from below. Above the sweet spot the award is
+                // zero: overbought is the risk this score exists to flag, not
+                // reward — it used to pay the same credit as oversold, so RSI
+                // 85 outranked RSI 45 on a scale whose top band reads STRONG
+                // BUY.
+                $momentum += $this->ramp($rsi, $w['rsi_approach_from'], $w['rsi_sweet_spot_min'], $w['momentum_rsi_sweet_spot']);
             }
-            if ($stochK < $w['stoch_oversold_max']) {
-                $momentum += $w['momentum_stoch_oversold'];
+
+            // Oversold is its own, smaller award, and only below the line.
+            if ($rsi < $w['rsi_oversold_max']) {
+                $momentum += $this->ramp($rsi, $w['rsi_oversold_max'], 0.0, $w['momentum_rsi_oversold']);
             }
+
+            $momentum += $this->ramp($stochK, $w['stoch_oversold_max'], $w['stoch_full_at'], $w['momentum_stoch_oversold']);
         }
 
-        $flow = 0;
-        $volAvg20 = (int) $price->vol_avg_20;
-        if ($volAvg20 > 0) {
-            $ratio = (int) $price->volume / $volAvg20;
-            if ($ratio > $w['volume_above_avg_ratio']) {
-                $flow += $w['flow_volume_above_avg'];
-            }
-            if ($ratio > $w['volume_spike_ratio']) {
-                $flow += $w['flow_volume_spike'];
-            }
+        $flow = 0.0;
+        if ((int) $price->vol_avg_20 > 0) {
+            // One graded award replacing the old 1.2x/2.0x pair, worth their
+            // sum, so the flow maximum is unchanged.
+            $flow += $this->ramp(
+                $price->volumeSpikeRatio(),
+                $w['volume_above_avg_ratio'],
+                $w['volume_ratio_full'],
+                $w['flow_volume'],
+            );
         }
         if ($price->is_breakout) {
+            // Genuinely binary: a breakout either happened today or it did not.
             $flow += $w['flow_breakout'];
         }
 
@@ -604,28 +617,47 @@ class TechnicalAnalysisService
         // than a per-field test, because der = 0 is the *best* gearing there
         // is — no borrowings — and scoring it as missing would penalise
         // exactly the strongest balance sheets.
-        $fundamental = 0;
+        $fundamental = 0.0;
         if ($ref !== null && $ref->hasFundamentals()) {
             $roe = (float) $ref->roe;
             $der = (float) $ref->der;
             $per = (float) $ref->pe_ratio;
 
-            if ($roe > $w['fundamental_roe_min']) {
-                $fundamental += $w['fundamental_roe'];
+            $fundamental += $this->ramp($roe, $w['fundamental_roe_min'], $w['fundamental_roe_full'], $w['fundamental_roe']);
+
+            // Descending ramp: less gearing is better, all the way down to
+            // zero. Not below it — a negative DER is negative equity,
+            // liabilities past assets, the worst reading there is, and the
+            // old `$der < 1.5` scored it as the best.
+            if ($der >= 0) {
+                $fundamental += $this->ramp($der, $w['fundamental_der_max'], $w['fundamental_der_full'], $w['fundamental_der']);
             }
-            // Lower gearing is better, all the way down to zero, but not below
-            // it: a negative DER means negative equity — liabilities past
-            // assets — which is the worst reading there is, and `$der < 1.5`
-            // scored it as the best.
-            if ($der >= 0 && $der < $w['fundamental_der_max']) {
-                $fundamental += $w['fundamental_der'];
-            }
-            if ($per > 0 && $per < $w['fundamental_per_max']) {
-                $fundamental += $w['fundamental_per'];
+
+            if ($per > 0) {
+                $fundamental += $this->ramp($per, $w['fundamental_per_max'], $w['fundamental_per_full'], $w['fundamental_per']);
             }
         }
 
         return new ScoreBreakdown($trend, $momentum, $flow, $fundamental);
+    }
+
+    /**
+     * Linear credit for a reading between two endpoints, clamped outside them.
+     *
+     * $zeroAt is where the award starts counting and $fullAt where it is fully
+     * earned. $fullAt may be the lower of the two, which is how the
+     * "less is better" rules are written — gearing, valuation, an oversold
+     * stochastic — so there is one helper rather than one per direction.
+     */
+    private function ramp(float $value, float $zeroAt, float $fullAt, float $points): float
+    {
+        if ($fullAt === $zeroAt) {
+            return $value >= $fullAt ? $points : 0.0;
+        }
+
+        $progress = ($value - $zeroAt) / ($fullAt - $zeroAt);
+
+        return max(0.0, min(1.0, $progress)) * $points;
     }
 
     /**

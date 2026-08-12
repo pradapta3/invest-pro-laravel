@@ -112,7 +112,9 @@
             <div class="p-4 space-y-3">
                 @foreach ([['Trend', $score->trend, 35, 'bg-primary'], ['Momentum', $score->momentum, 25, 'bg-sky-500'], ['Smart Flow', $score->flow, 25, 'bg-amber-500'], ['Fundamental', $score->fundamental, 15, 'bg-emerald-500']] as [$label, $val, $max, $color])
                     <div>
-                        <div class="flex justify-between text-[11px] font-bold text-slate-500 mb-1"><span>{{ $label }}</span><span>{{ $val }}/{{ $max }}</span></div>
+                        {{-- Rounded for display only: the awards are graded now, so
+                             $val carries a fraction the bar width still uses. --}}
+                        <div class="flex justify-between text-[11px] font-bold text-slate-500 mb-1"><span>{{ $label }}</span><span>{{ round($val, 1) }}/{{ $max }}</span></div>
                         <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full {{ $color }}" style="width: {{ ($val / $max) * 100 }}%"></div></div>
                     </div>
                 @endforeach

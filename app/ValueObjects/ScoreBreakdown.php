@@ -8,17 +8,22 @@ namespace App\ValueObjects;
  */
 final readonly class ScoreBreakdown
 {
+    /**
+     * Floats, not ints: the awards are graded, so a component lands anywhere
+     * in its range rather than on a multiple of five. total() is what gets
+     * shown, and that is still a whole number.
+     */
     public function __construct(
-        public int $trend,
-        public int $momentum,
-        public int $flow,
-        public int $fundamental,
+        public float $trend,
+        public float $momentum,
+        public float $flow,
+        public float $fundamental,
     ) {
     }
 
     public function total(): int
     {
-        return max(0, min(100, $this->trend + $this->momentum + $this->flow + $this->fundamental));
+        return max(0, min(100, (int) round($this->trend + $this->momentum + $this->flow + $this->fundamental)));
     }
 
     public function verdict(): string

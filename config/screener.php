@@ -215,12 +215,40 @@ return [
         // stock for being overbought.
         'momentum_rsi_oversold' => 5,
         'momentum_stoch_oversold' => 5,
+        // One graded volume award replacing the old two-step pair; the sum is
+        // unchanged, so the flow maximum is still 25.
+        'flow_volume' => 15,
         'flow_volume_above_avg' => 10,
         'flow_volume_spike' => 5,
         'flow_breakout' => 10,
         'fundamental_roe' => 5,
         'fundamental_der' => 5,
         'fundamental_per' => 5,
+        /*
+        | Ramp endpoints for the graded awards.
+        |
+        | Each pair is (no credit at, full credit at) for one rule. The old
+        | scoring was entirely all-or-nothing, which meant the 0-100 scale
+        | could only ever land on 21 values — every multiple of 5 — so a
+        | ranking of 900 emiten collapsed into 21 buckets and two stocks were
+        | indistinguishable unless they differed on a whole condition. Between
+        | the two endpoints credit is now linear, and outside them it clamps,
+        | so the old thresholds still mark where credit starts and stops.
+        |
+        | Written as ratios where the underlying figure scales with price
+        | (a MACD histogram of 5 means something different on a Rp150 stock
+        | than on a Rp9,000 one).
+        */
+        'ma20_premium_full' => 0.03,      // 3% above MA20 earns the full trend award
+        'vwap_premium_full' => 0.02,
+        'macd_hist_ratio_full' => 0.005,  // hist/close
+        'rsi_approach_from' => 40,        // credit ramps in from here up to the sweet spot
+        'stoch_full_at' => 0.0,           // %K 0 is maximum oversold
+        'volume_ratio_full' => 2.0,
+        'fundamental_roe_full' => 25,
+        'fundamental_der_full' => 0.0,    // debt-free earns the whole award
+        'fundamental_per_full' => 8,
+
         'rsi_sweet_spot_min' => 50,
         'rsi_sweet_spot_max' => 70,
         // Were hard-coded in calculateScore(), which is what this file exists
