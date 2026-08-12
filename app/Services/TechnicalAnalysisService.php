@@ -541,15 +541,23 @@ class TechnicalAnalysisService
         $stochK = (float) $price->stoch_k;
         $macdHist = (float) $price->macd_hist;
 
-        // Every indicator below is only scored when it is actually present.
-        // Absent ones are stored as 0, not null, so an unguarded comparison
-        // reads a missing figure as a favourable one: `close > ma20` is true
-        // against a missing MA20, and `stoch_k < 20` is true against a missing
-        // stochastic. Measured over the whole exchange before these guards
-        // went in, 19% of every score was awarded for data that did not
-        // exist. VWAP was already guarded here; the rest were not.
+        // Nothing is scored from a figure that was never computed. These
+        // columns are NOT NULL DEFAULT 0, so an unguarded comparison reads a
+        // missing value as a favourable one: `close > ma20` is true against a
+        // missing MA20, `stoch_k < 20` against a missing stochastic. Measured
+        // across all 918 emiten on a database where the ingest commands had
+        // not run, that was awarding 19% of every score for data that did not
+        // exist.
+        //
+        // The presence test is hasIndicators(), not `field > 0` on each one.
+        // 0 is a real reading here — %K = 0 is the most oversold a stock can
+        // be, and stochastic() returns 50.0, never 0, when it has nothing to
+        // work with — so a per-field test would discard genuine extremes to
+        // catch defaults. See StockPrice::hasIndicators().
+        $hasIndicators = $price->hasIndicators();
+
         $trend = 0;
-        if ($ma20 > 0 && $close > $ma20) {
+        if ($hasIndicators && $close > $ma20) {
             $trend += $w['trend_above_ma20'];
         }
         if ($vwap > 0 && $close > $vwap) {
@@ -557,10 +565,10 @@ class TechnicalAnalysisService
         }
 
         $momentum = 0;
-        if ($macdHist > 0) {
-            $momentum += $w['momentum_macd_positive'];
-        }
-        if ($rsi > 0) {
+        if ($hasIndicators) {
+            if ($macdHist > 0) {
+                $momentum += $w['momentum_macd_positive'];
+            }
             if ($rsi >= $w['rsi_sweet_spot_min'] && $rsi <= $w['rsi_sweet_spot_max']) {
                 $momentum += $w['momentum_rsi_sweet_spot'];
             } elseif ($rsi < $w['rsi_oversold_max']) {
@@ -571,9 +579,9 @@ class TechnicalAnalysisService
                 // should be flagging, not rewarding, so it now earns nothing.
                 $momentum += $w['momentum_rsi_oversold'];
             }
-        }
-        if ($stochK > 0 && $stochK < $w['stoch_oversold_max']) {
-            $momentum += $w['momentum_stoch_oversold'];
+            if ($stochK < $w['stoch_oversold_max']) {
+                $momentum += $w['momentum_stoch_oversold'];
+            }
         }
 
         $flow = 0;
@@ -591,24 +599,29 @@ class TechnicalAnalysisService
             $flow += $w['flow_breakout'];
         }
 
+        // Same presence problem, same shape of answer: hasFundamentals() rather
+        // than a per-field test, because der = 0 is the *best* gearing there
+        // is — no borrowings — and scoring it as missing would penalise
+        // exactly the strongest balance sheets.
         $fundamental = 0;
-        $roe = (float) ($ref?->roe ?? 0);
-        $der = (float) ($ref?->der ?? 0);
-        $per = (float) ($ref?->pe_ratio ?? 0);
-        if ($roe > $w['fundamental_roe_min']) {
-            $fundamental += $w['fundamental_roe'];
-        }
-        // Lower gearing is better, but only down to zero. A negative DER means
-        // negative equity — liabilities exceeding assets — which is the worst
-        // reading there is, and `$der < 1.5` scored it as the best. The old
-        // `?? 10` default was there to make a missing value fail that test;
-        // requiring a positive figure says the same thing without the
-        // sentinel, and catches a stored 0 as well, which the sentinel missed.
-        if ($der > 0 && $der < $w['fundamental_der_max']) {
-            $fundamental += $w['fundamental_der'];
-        }
-        if ($per > 0 && $per < $w['fundamental_per_max']) {
-            $fundamental += $w['fundamental_per'];
+        if ($ref !== null && $ref->hasFundamentals()) {
+            $roe = (float) $ref->roe;
+            $der = (float) $ref->der;
+            $per = (float) $ref->pe_ratio;
+
+            if ($roe > $w['fundamental_roe_min']) {
+                $fundamental += $w['fundamental_roe'];
+            }
+            // Lower gearing is better, all the way down to zero, but not below
+            // it: a negative DER means negative equity — liabilities past
+            // assets — which is the worst reading there is, and `$der < 1.5`
+            // scored it as the best.
+            if ($der >= 0 && $der < $w['fundamental_der_max']) {
+                $fundamental += $w['fundamental_der'];
+            }
+            if ($per > 0 && $per < $w['fundamental_per_max']) {
+                $fundamental += $w['fundamental_per'];
+            }
         }
 
         return new ScoreBreakdown($trend, $momentum, $flow, $fundamental);

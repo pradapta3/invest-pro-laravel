@@ -107,7 +107,11 @@ class DashboardController extends Controller
             return $stocks->sortByDesc(function (StockPrice $p) use ($cfg) {
                 $points = $p->volumeSpikeRatio() * $cfg['sort_weight_volume_spike'];
                 $points += $p->is_breakout ? $cfg['sort_weight_breakout'] : 0;
-                $points += (float) $p->close_price > (float) $p->vwap ? $cfg['sort_weight_above_vwap'] : 0;
+                // moneyFlow(), not a hand-written close > vwap: unguarded, that
+                // was true for every row whose VWAP had never been collected
+                // (`close > 0`), floating the whole unprocessed exchange above
+                // the names genuinely trading above their VWAP.
+                $points += $p->moneyFlow() === 'AKUM' ? $cfg['sort_weight_above_vwap'] : 0;
 
                 return $points;
             })->values();

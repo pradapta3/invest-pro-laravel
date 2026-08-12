@@ -17,7 +17,7 @@
         default => 'text-red-600',
     };
     $flowStat = $price->moneyFlow();
-    $trendUp = (float) $price->ma20 > 0 && $close > (float) $price->ma20;
+    $trendUp = $price->isAboveMa20();
 @endphp
 
 <div class="bg-white border border-slate-200 rounded-2xl mb-4 p-4 flex flex-wrap items-center justify-between gap-4">
@@ -128,7 +128,11 @@
                     <div class="flex justify-between"><span class="text-slate-400">PBV</span><span class="font-bold">{{ number_format((float) $ref->pb_ratio, 2) }}x</span></div>
                 </div>
                 <div class="space-y-2 pl-1">
-                    <div class="flex justify-between"><span class="text-slate-400">Trend</span><span class="font-bold {{ $trendUp ? 'text-emerald-600' : 'text-red-600' }}">{{ $trendUp ? 'BULLISH' : 'BEARISH' }}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Trend</span><span class="font-bold {{ match ($trendUp) {
+                        true => 'text-emerald-600',
+                        false => 'text-red-600',
+                        default => 'text-slate-400',
+                    } }}">{{ match ($trendUp) { true => 'BULLISH', false => 'BEARISH', default => '-' } }}</span></div>
                     <div class="flex justify-between"><span class="text-slate-400">RSI</span><span class="font-bold">{{ round((float) $price->rsi_14) }}</span></div>
                     <div class="flex justify-between"><span class="text-slate-400">Stoch</span><span class="font-bold">{{ round((float) $price->stoch_k) }}</span></div>
                 </div>

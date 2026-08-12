@@ -51,6 +51,26 @@ class StockRef extends Model
     }
 
     /**
+     * Whether UpdateFundamentals has ever landed figures on this row.
+     *
+     * roe, pe_ratio and der are NOT NULL DEFAULT 0, so an untouched row reads
+     * as a company with no earnings and no debt. der = 0 in particular is a
+     * genuine and desirable value — it means no borrowings — so it cannot be
+     * used as its own presence test without penalising exactly the companies
+     * with the strongest balance sheets.
+     *
+     * This is the same test UpdateFundamentals applies before it writes at
+     * all (its $hasData), so the two agree by construction: a row it declined
+     * to write reports false here.
+     */
+    public function hasFundamentals(): bool
+    {
+        return (float) $this->roe != 0.0
+            || (float) $this->pe_ratio != 0.0
+            || (int) $this->market_cap != 0;
+    }
+
+    /**
      * Ticker without the ".JK" Yahoo Finance suffix, e.g. "BBCA".
      */
     public function cleanTicker(): string

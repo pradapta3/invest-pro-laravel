@@ -41,7 +41,7 @@
                         $ref = $stock->stockRef;
                         $score = $ta->calculateScore($stock, $ref);
                         $plan = $ta->buildTradingPlan($stock, $filter === 'bsjp' ? 'bsjp' : 'swing');
-                        $trendUp = (float) $stock->close_price > (float) $stock->ma20;
+                        $trendUp = $stock->isAboveMa20();
                         $vwapStat = $stock->moneyFlow();
                         $cleanTicker = str_replace('.JK', '', $stock->ticker);
                         $isWatchlisted = in_array($stock->ticker, $watchlistedTickers, true);
@@ -63,8 +63,14 @@
                         </td>
                         <td class="px-2 py-3 text-center"><x-score-badge :score="$score->total()" class="mx-auto" /></td>
                         <td class="px-2 py-3">
-                            <x-sparkline :history="$stock->history_json ?? []" :color="$trendUp ? '#10b981' : '#ef4444'" />
-                            <div class="font-bold text-xs mt-1 {{ $trendUp ? 'text-emerald-600' : 'text-red-600' }}">Rp {{ number_format($stock->close_price) }}</div>
+                            {{-- Grey, not red, when MA20 has not been computed: null here
+                                 means unknown, and a red line is a claim about direction. --}}
+                            <x-sparkline :history="$stock->history_json ?? []" :color="match ($trendUp) { true => '#10b981', false => '#ef4444', default => '#94a3b8' }" />
+                            <div class="font-bold text-xs mt-1 {{ match ($trendUp) {
+                                true => 'text-emerald-600',
+                                false => 'text-red-600',
+                                default => 'text-slate-400',
+                            } }}">Rp {{ number_format($stock->close_price) }}</div>
                         </td>
                         <td class="px-2 py-3 text-xs">
                             <div class="flex justify-between gap-2"><span class="text-slate-400">Entry</span><span class="font-bold text-primary">{{ $plan->entryText() }}</span></div>

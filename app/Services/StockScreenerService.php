@@ -67,7 +67,7 @@ class StockScreenerService
         $cfg = config('screener.trend_runner');
 
         return ($universe ?? $this->tradableUniverse())
-            ->filter(fn (StockPrice $p) => (float) $p->close_price > (float) $p->ma20
+            ->filter(fn (StockPrice $p) => $p->isAboveMa20() === true
                 && (float) $p->rsi_14 > $cfg['min_rsi']
                 && (float) $p->rsi_14 < $cfg['max_rsi'])
             ->sortByDesc(fn (StockPrice $p) => (float) $p->rsi_14)
@@ -79,7 +79,7 @@ class StockScreenerService
         $cfg = config('screener.pullback_sniper');
 
         return ($universe ?? $this->tradableUniverse())
-            ->filter(fn (StockPrice $p) => (float) $p->close_price > (float) $p->ma20
+            ->filter(fn (StockPrice $p) => $p->isAboveMa20() === true
                 && (float) $p->rsi_14 >= $cfg['min_rsi']
                 && (float) $p->rsi_14 <= $cfg['max_rsi']
                 && (float) $p->value_transaction > $cfg['min_transaction_value'])
@@ -106,7 +106,7 @@ class StockScreenerService
 
         return ($universe ?? $this->tradableUniverse())
             ->filter(fn (StockPrice $p) => (float) $p->stockRef->roe > $cfg['min_roe']
-                && (float) $p->close_price > (float) $p->ma20
+                && $p->isAboveMa20() === true
                 && ((float) $p->stockRef->pe_ratio < $cfg['max_pe_ratio'] || (float) $p->macd_hist > 0))
             ->values();
     }
@@ -176,14 +176,20 @@ class StockScreenerService
      */
     public function marketBreadthPct(): int
     {
-        $total = StockPrice::query()->where('close_price', '>', 0)->count();
+        // Both sides of the ratio are restricted to rows whose MA20 exists.
+        // Counting unprocessed rows in the denominator understates breadth;
+        // counting them in the numerator — which `close_price > ma20` did,
+        // since ma20 defaults to 0 — reported the entire exchange as trading
+        // above its average. That is where the header's "100% Greed" came
+        // from on a database whose indicators had never been computed.
+        $base = StockPrice::query()->where('close_price', '>', 0)->where('ma20', '>', 0);
+
+        $total = (clone $base)->count();
         if ($total === 0) {
             return 50;
         }
 
-        $uptrend = StockPrice::query()->where('close_price', '>', 0)
-            ->whereColumn('close_price', '>', 'ma20')
-            ->count();
+        $uptrend = (clone $base)->whereColumn('close_price', '>', 'ma20')->count();
 
         return (int) round(($uptrend / $total) * 100);
     }
@@ -276,13 +282,15 @@ class StockScreenerService
             $score = $tier['points'];
             $tags = array_filter([$tier['tag']]);
 
-            if ((float) $price->close_price > (float) $price->ma20) {
+            // Both tests go through the model rather than comparing columns
+            // here. MA20 and VWAP are NOT NULL DEFAULT 0, so `close > 0` was
+            // true for any row those commands had not reached yet — between
+            // them 30 of the 50 points a stock needs to qualify as a Titan
+            // signal, handed out for having no data at all.
+            if ($price->isAboveMa20() === true) {
                 $score += $cfg['trend_points'];
             }
-            // Guarded, like the trend test above it: VWAP is 0 until the first
-            // realtime run of the day, and `close > 0` handed every emiten
-            // these points for free — a sixth of the qualifying score.
-            if ((float) $price->vwap > 0 && (float) $price->close_price > (float) $price->vwap) {
+            if ($price->moneyFlow() === 'AKUM') {
                 $score += $cfg['vwap_points'];
             }
             if ($price->is_breakout) {

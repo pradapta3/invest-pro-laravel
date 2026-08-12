@@ -100,29 +100,71 @@ class StockPrice extends Model
     }
 
     /**
+     * Whether this row's derived indicators — ma20, rsi_14, stoch_k,
+     * macd_hist — have actually been computed.
+     *
+     * Those columns are NOT NULL DEFAULT 0, so an untouched row is
+     * indistinguishable from a computed one by value alone, and 0 is a real
+     * reading for three of the four: %K = 0 is the *most* oversold a stock
+     * can be, and macd_hist crosses zero constantly. Testing each field for
+     * `> 0` therefore throws away genuine extremes.
+     *
+     * ma20 answers it for all of them instead. UpdateMarketData skips a
+     * ticker outright when there is not enough history, and otherwise writes
+     * every one of these fields together from a 20-close mean that cannot be
+     * zero for a listed stock. So ma20 > 0 means the whole set is real.
+     */
+    public function hasIndicators(): bool
+    {
+        return (float) $this->ma20 > 0;
+    }
+
+    /**
+     * Whether the close sits above MA20, or null when MA20 was never
+     * computed. Same reason as moneyFlow() below: written out by hand,
+     * `close > 0` is true against a missing MA20, so the dashboard called
+     * every unprocessed row BULLISH.
+     */
+    public function isAboveMa20(): ?bool
+    {
+        if (! $this->hasIndicators()) {
+            return null;
+        }
+
+        return (float) $this->close_price > (float) $this->ma20;
+    }
+
+    /**
      * Where the day's money sat relative to VWAP: 'AKUM' when the close is
-     * above it, 'DIST' below, and null when VWAP is unknown.
+     * above it, 'DIST' below, and null when that cannot be told.
      *
      * Null is the point of this method. VWAP is only ever written by
-     * idx:update-realtime-quotes, so before that command's first run of the
-     * day — and on a freshly seeded database — it is 0 for every emiten. Four
-     * call sites each wrote this comparison out by hand and two of them
-     * compared against that 0 unguarded, so `close > 0` came out true and the
-     * whole exchange was labelled accumulating. The two that did guard fell
-     * the other way and labelled it all distributing. The same emiten at the
-     * same moment therefore read AKUM in Telegram and DIST on the dashboard.
+     * idx:update-realtime-quotes, so until that command's first successful
+     * run it is 0 for every emiten. Five call sites each wrote this
+     * comparison out by hand and three compared against that 0 unguarded, so
+     * `close > 0` came out true and the whole exchange read as accumulating.
+     * The two that did guard fell the other way and labelled it all
+     * distributing — the same emiten reading AKUM in Telegram and DIST on the
+     * dashboard at the same moment.
+     *
+     * close == vwap is unknown rather than DIST. MarketDataService stores the
+     * close as the VWAP when TradingView returns none, so equality is how a
+     * ticker with no VWAP data arrives; and where it is genuine — an illiquid
+     * name whose only trade of the day set both — it is neither accumulation
+     * nor distribution. Both readings agree that it is not a red flag.
      *
      * Callers are expected to render null as "-" rather than picking a side.
      */
     public function moneyFlow(): ?string
     {
         $vwap = (float) $this->vwap;
+        $close = (float) $this->close_price;
 
-        if ($vwap <= 0) {
+        if ($vwap <= 0 || $close === $vwap) {
             return null;
         }
 
-        return (float) $this->close_price > $vwap ? 'AKUM' : 'DIST';
+        return $close > $vwap ? 'AKUM' : 'DIST';
     }
 
     /**
