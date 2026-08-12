@@ -541,8 +541,15 @@ class TechnicalAnalysisService
         $stochK = (float) $price->stoch_k;
         $macdHist = (float) $price->macd_hist;
 
+        // Every indicator below is only scored when it is actually present.
+        // Absent ones are stored as 0, not null, so an unguarded comparison
+        // reads a missing figure as a favourable one: `close > ma20` is true
+        // against a missing MA20, and `stoch_k < 20` is true against a missing
+        // stochastic. Measured over the whole exchange before these guards
+        // went in, 19% of every score was awarded for data that did not
+        // exist. VWAP was already guarded here; the rest were not.
         $trend = 0;
-        if ($close > $ma20) {
+        if ($ma20 > 0 && $close > $ma20) {
             $trend += $w['trend_above_ma20'];
         }
         if ($vwap > 0 && $close > $vwap) {
@@ -553,12 +560,19 @@ class TechnicalAnalysisService
         if ($macdHist > 0) {
             $momentum += $w['momentum_macd_positive'];
         }
-        if ($rsi >= $w['rsi_sweet_spot_min'] && $rsi <= $w['rsi_sweet_spot_max']) {
-            $momentum += $w['momentum_rsi_sweet_spot'];
-        } elseif ($rsi > 70 || $rsi < 30) {
-            $momentum += $w['momentum_rsi_extreme'];
+        if ($rsi > 0) {
+            if ($rsi >= $w['rsi_sweet_spot_min'] && $rsi <= $w['rsi_sweet_spot_max']) {
+                $momentum += $w['momentum_rsi_sweet_spot'];
+            } elseif ($rsi < $w['rsi_oversold_max']) {
+                // Oversold only. This used to read `$rsi > 70 || $rsi < 30`,
+                // paying the same credit for both ends, so a stock at RSI 85
+                // scored above one at RSI 45 — on a composite whose top band
+                // is labelled STRONG BUY. Overbought is the risk this score
+                // should be flagging, not rewarding, so it now earns nothing.
+                $momentum += $w['momentum_rsi_oversold'];
+            }
         }
-        if ($stochK < 20) {
+        if ($stochK > 0 && $stochK < $w['stoch_oversold_max']) {
             $momentum += $w['momentum_stoch_oversold'];
         }
 
@@ -579,12 +593,18 @@ class TechnicalAnalysisService
 
         $fundamental = 0;
         $roe = (float) ($ref?->roe ?? 0);
-        $der = (float) ($ref?->der ?? 10);
+        $der = (float) ($ref?->der ?? 0);
         $per = (float) ($ref?->pe_ratio ?? 0);
         if ($roe > $w['fundamental_roe_min']) {
             $fundamental += $w['fundamental_roe'];
         }
-        if ($der < $w['fundamental_der_max']) {
+        // Lower gearing is better, but only down to zero. A negative DER means
+        // negative equity — liabilities exceeding assets — which is the worst
+        // reading there is, and `$der < 1.5` scored it as the best. The old
+        // `?? 10` default was there to make a missing value fail that test;
+        // requiring a positive figure says the same thing without the
+        // sentinel, and catches a stored 0 as well, which the sentinel missed.
+        if ($der > 0 && $der < $w['fundamental_der_max']) {
             $fundamental += $w['fundamental_der'];
         }
         if ($per > 0 && $per < $w['fundamental_per_max']) {

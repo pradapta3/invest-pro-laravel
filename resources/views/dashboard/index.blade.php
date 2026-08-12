@@ -42,7 +42,7 @@
                         $score = $ta->calculateScore($stock, $ref);
                         $plan = $ta->buildTradingPlan($stock, $filter === 'bsjp' ? 'bsjp' : 'swing');
                         $trendUp = (float) $stock->close_price > (float) $stock->ma20;
-                        $vwapStat = (float) $stock->vwap > 0 && (float) $stock->close_price > (float) $stock->vwap ? 'AKUM' : 'DIST';
+                        $vwapStat = $stock->moneyFlow();
                         $cleanTicker = str_replace('.JK', '', $stock->ticker);
                         $isWatchlisted = in_array($stock->ticker, $watchlistedTickers, true);
                     @endphp
@@ -73,7 +73,14 @@
                         </td>
                         <td class="px-2 py-3">
                             <div class="font-bold text-xs">Rp {{ \App\Support\Format::compactRupiah($stock->value_transaction) }}</div>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ $vwapStat === 'AKUM' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600' }}">{{ $vwapStat }}</span>
+                            {{-- Neutral grey when VWAP has not been collected yet, rather
+                                 than a red DIST badge asserting distribution for the whole
+                                 exchange on the strength of a missing number. --}}
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ match ($vwapStat) {
+                                'AKUM' => 'bg-emerald-50 text-emerald-600',
+                                'DIST' => 'bg-red-50 text-red-600',
+                                default => 'bg-slate-100 text-slate-400',
+                            } }}" @if ($vwapStat === null) title="VWAP belum tersedia — jalankan idx:update-realtime-quotes" @endif>{{ $vwapStat ?? '-' }}</span>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex justify-end gap-2">

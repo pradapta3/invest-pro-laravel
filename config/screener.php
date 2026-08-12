@@ -204,7 +204,10 @@ return [
         'trend_above_vwap' => 15,
         'momentum_macd_positive' => 10,
         'momentum_rsi_sweet_spot' => 10,
-        'momentum_rsi_extreme' => 5,
+        // Oversold only — see calculateScore(). This was 'momentum_rsi_extreme'
+        // and paid out at both ends of the range, which rewarded an overbought
+        // stock for being overbought.
+        'momentum_rsi_oversold' => 5,
         'momentum_stoch_oversold' => 5,
         'flow_volume_above_avg' => 10,
         'flow_volume_spike' => 5,
@@ -214,6 +217,11 @@ return [
         'fundamental_per' => 5,
         'rsi_sweet_spot_min' => 50,
         'rsi_sweet_spot_max' => 70,
+        // Were hard-coded in calculateScore(), which is what this file exists
+        // to prevent. rsi_oversold_max is the only one still consulted:
+        // above rsi_sweet_spot_max now scores nothing at all.
+        'rsi_oversold_max' => 30,
+        'stoch_oversold_max' => 20,
         'volume_above_avg_ratio' => 1.2,
         'volume_spike_ratio' => 2.0,
         'fundamental_roe_min' => 10,

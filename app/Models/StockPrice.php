@@ -100,6 +100,32 @@ class StockPrice extends Model
     }
 
     /**
+     * Where the day's money sat relative to VWAP: 'AKUM' when the close is
+     * above it, 'DIST' below, and null when VWAP is unknown.
+     *
+     * Null is the point of this method. VWAP is only ever written by
+     * idx:update-realtime-quotes, so before that command's first run of the
+     * day — and on a freshly seeded database — it is 0 for every emiten. Four
+     * call sites each wrote this comparison out by hand and two of them
+     * compared against that 0 unguarded, so `close > 0` came out true and the
+     * whole exchange was labelled accumulating. The two that did guard fell
+     * the other way and labelled it all distributing. The same emiten at the
+     * same moment therefore read AKUM in Telegram and DIST on the dashboard.
+     *
+     * Callers are expected to render null as "-" rather than picking a side.
+     */
+    public function moneyFlow(): ?string
+    {
+        $vwap = (float) $this->vwap;
+
+        if ($vwap <= 0) {
+            return null;
+        }
+
+        return (float) $this->close_price > $vwap ? 'AKUM' : 'DIST';
+    }
+
+    /**
      * Trailing daily closes decoded from history_json, oldest first.
      *
      * @return array<int, float>

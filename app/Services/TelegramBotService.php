@@ -327,7 +327,11 @@ class TelegramBotService
     {
         $score = $this->ta->calculateScore($price, $ref);
         $plan = $this->ta->buildTradingPlan($price, 'swing');
-        $flow = (float) $price->close_price > (float) $price->vwap ? 'Accumulation 🟢' : 'Distribution 🔴';
+        $flow = match ($price->moneyFlow()) {
+            'AKUM' => 'Accumulation 🟢',
+            'DIST' => 'Distribution 🔴',
+            default => 'Belum ada data VWAP ⚪',
+        };
         $t = $ref->cleanTicker();
 
         $lines = [
@@ -361,7 +365,7 @@ class TelegramBotService
     {
         $score = $this->ta->calculateScore($price, $ref);
         $plan = $this->ta->buildTradingPlan($price, 'swing');
-        $flow = (float) $price->close_price > (float) $price->vwap ? 'AKUM' : 'DIST';
+        $flow = $price->moneyFlow() ?? '-';
         $t = $ref->cleanTicker();
 
         $lines = [

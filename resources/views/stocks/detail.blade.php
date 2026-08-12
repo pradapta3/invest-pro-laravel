@@ -16,8 +16,8 @@
         'NEUTRAL' => 'text-amber-600',
         default => 'text-red-600',
     };
-    $flowStat = (float) $price->vwap > 0 && $close > (float) $price->vwap ? 'ACCUM' : 'DIST';
-    $trendUp = $close > (float) $price->ma20;
+    $flowStat = $price->moneyFlow();
+    $trendUp = (float) $price->ma20 > 0 && $close > (float) $price->ma20;
 @endphp
 
 <div class="bg-white border border-slate-200 rounded-2xl mb-4 p-4 flex flex-wrap items-center justify-between gap-4">
@@ -27,7 +27,12 @@
             <h1 class="text-2xl font-extrabold">{{ $cleanTicker }} <span class="text-base font-normal text-slate-400">{{ $ref->nama_perusahaan }}</span></h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="text-xs bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">{{ $ref->sector ?? '-' }}</span>
-                <span class="text-xs rounded-full px-2 py-0.5 {{ $flowStat === 'ACCUM' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700' }}">{{ $flowStat }}</span>
+                <span class="text-xs rounded-full px-2 py-0.5 {{ match ($flowStat) {
+                    'AKUM' => 'bg-emerald-100 text-emerald-700',
+                    'DIST' => 'bg-red-100 text-red-700',
+                    default => 'bg-slate-100 text-slate-400',
+                } }}"
+                      title="{{ $flowStat === null ? 'VWAP belum tersedia' : 'Posisi harga terhadap VWAP hari ini' }}">{{ $flowStat ?? 'FLOW -' }}</span>
             </div>
         </div>
     </div>

@@ -279,7 +279,10 @@ class StockScreenerService
             if ((float) $price->close_price > (float) $price->ma20) {
                 $score += $cfg['trend_points'];
             }
-            if ((float) $price->close_price > (float) $price->vwap) {
+            // Guarded, like the trend test above it: VWAP is 0 until the first
+            // realtime run of the day, and `close > 0` handed every emiten
+            // these points for free — a sixth of the qualifying score.
+            if ((float) $price->vwap > 0 && (float) $price->close_price > (float) $price->vwap) {
                 $score += $cfg['vwap_points'];
             }
             if ($price->is_breakout) {
