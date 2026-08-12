@@ -87,6 +87,13 @@ return [
     'yahoo_finance' => [
         'base_url' => env('YAHOO_FINANCE_BASE_URL', 'https://query1.finance.yahoo.com'),
         'crumb_base_url' => env('YAHOO_FINANCE_CRUMB_BASE_URL', 'https://query2.finance.yahoo.com'),
+        // Annual statements for idx:update-financials. A separate host and
+        // path from base_url, and query2 specifically — query1 does not serve
+        // this endpoint reliably.
+        'timeseries_url' => env(
+            'YAHOO_FINANCE_TIMESERIES_URL',
+            'https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries'
+        ),
         'auth_cookie_url' => env('YAHOO_FINANCE_AUTH_COOKIE_URL', 'https://fc.yahoo.com'),
         'user_agent' => env(
             'YAHOO_FINANCE_USER_AGENT',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\StockFinancial;
 use App\Models\StockRef;
 use App\Services\MarketData\MarketDataService;
 use App\Services\TechnicalAnalysisService;
@@ -48,7 +49,14 @@ class StockDetailController extends Controller
         $dailyChart = $this->marketData->dailyChart($ref->ticker, '1y', '1d');
         $backtest = $this->ta->backtestMa20Strategy($dailyChart['close']);
 
+        // Newest first for the table's column order; the view walks pairs to
+        // work out year-on-year growth, so the ordering is load-bearing.
+        $financials = StockFinancial::query()
+            ->recentFor($ref->ticker, config('screener.financial_statement_years'))
+            ->get();
+
         return view('stocks.detail', [
+            'financials' => $financials,
             'ref' => $ref,
             'price' => $price,
             'peers' => $peers,

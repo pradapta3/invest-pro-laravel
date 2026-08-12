@@ -78,6 +78,41 @@ class YahooFinanceClient
         return $response?->json('quoteSummary.result.0') ?? [];
     }
 
+    /**
+     * Annual fundamentals as a time series, for the statements on the stock
+     * detail page.
+     *
+     * Not quoteSummary: its incomeStatementHistory family returns four annual
+     * periods and offers no way to ask for more, so five years of history is
+     * out of reach there. This endpoint takes an explicit window instead, and
+     * returns one series per requested type.
+     *
+     * @param  array<int, string>  $types  e.g. ['annualTotalRevenue', 'annualNetIncome']
+     * @return array<int, array<string, mixed>> raw series, one entry per type
+     */
+    public function fundamentalsTimeseries(string $ticker, array $types, int $years = 5): array
+    {
+        $ticker = $this->normalizeTicker($ticker);
+        $base = config('services.yahoo_finance.timeseries_url');
+        $url = "{$base}/{$ticker}";
+
+        // A year of slack on each end: fiscal years do not align to calendar
+        // years, and the window is matched against period end dates.
+        $period1 = now()->subYears($years + 1)->startOfYear()->timestamp;
+        $period2 = now()->addYear()->timestamp;
+
+        $response = $this->attempt('fundamentalsTimeseries', $ticker, fn () => $this->authenticatedClient()->get($url, [
+            'symbol' => $ticker,
+            'type' => implode(',', $types),
+            'period1' => $period1,
+            'period2' => $period2,
+            'merge' => 'false',
+            'crumb' => $this->crumb(),
+        ]));
+
+        return $response?->json('timeseries.result') ?? [];
+    }
+
     public function realtimeQuote(string $ticker): array
     {
         $ticker = $this->normalizeTicker($ticker);

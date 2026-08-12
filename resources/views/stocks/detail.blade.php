@@ -62,6 +62,8 @@
             </div>
         </div>
 
+        @include('stocks.partials.financials')
+
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500">
                 <i class="fa-solid fa-scale-balanced mr-2"></i>Sector Comparison ({{ $ref->sector }})

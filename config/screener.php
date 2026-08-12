@@ -55,6 +55,19 @@ return [
 
     'backtest_universe' => (int) env('BACKTEST_UNIVERSE', 150),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Financial statement history
+    |--------------------------------------------------------------------------
+    |
+    | How many fiscal years the stock detail page shows, and how many
+    | idx:update-financials fetches. Five is enough to see a trend through a
+    | full cycle without the table needing to scroll on a phone.
+    |
+    */
+
+    'financial_statement_years' => (int) env('FINANCIAL_STATEMENT_YEARS', 5),
+
 
     'baseline' => [
         // Applied by every strategy before its own filters, matching the
