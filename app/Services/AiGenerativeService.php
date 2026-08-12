@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\ValueObjects\ProphetForecast;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -53,20 +54,27 @@ class AiGenerativeService
         }
 
         try {
-            $response = Http::timeout(config('services.gemini.timeout'))
-                // The key goes in a header, not ?key= in the URL. Guzzle puts the
-                // full effective URL into its ConnectionException message, so with
-                // the key as a query parameter every timeout or reset wrote the
-                // live API key into the log — and the catch below handed that same
-                // message back to the user, so it also appeared in Telegram
-                // replies and the dashboard modal.
-                ->withHeaders(['x-goog-api-key' => $apiKey])
-                ->post($url, [
-                    'contents' => [
-                        ['parts' => [['text' => $prompt]]],
-                    ],
-                    'generationConfig' => $generationConfig,
+            $response = $this->send($url, $apiKey, $prompt, $generationConfig);
+
+            // thinkingConfig is the one field here whose acceptance depends on
+            // which model GEMINI_MODEL resolves to: the reasoning generation
+            // takes it, everything before rejects the whole request with a
+            // 400. Rather than make that an operator's problem to notice and
+            // diagnose, drop the field and try once more — a 400 means the
+            // request was malformed, so there is nothing to back off from.
+            if ($response->status() === 400 && isset($generationConfig['thinkingConfig'])) {
+                // Worded as a hypothesis, not a diagnosis: a 400 can also mean
+                // a bad key, and matching on the error text instead would miss
+                // any rejection Google words differently. The retry costs one
+                // call and the real reason is logged below either way.
+                Log::warning('Gemini returned 400; retrying without thinkingConfig in case this model rejects it', [
+                    'model' => $model,
+                    'message' => $response->json('error.message') ?? 'Unknown error',
                 ]);
+
+                unset($generationConfig['thinkingConfig']);
+                $response = $this->send($url, $apiKey, $prompt, $generationConfig);
+            }
         } catch (Throwable $e) {
             // Detail to the log, not to whoever asked: the message can carry the
             // request URL and other internals.
@@ -78,6 +86,7 @@ class AiGenerativeService
         if ($response->failed()) {
             Log::warning('Gemini returned an error', [
                 'status' => $response->status(),
+                'model' => $model,
                 'message' => $response->json('error.message') ?? 'Unknown error',
             ]);
 
@@ -126,6 +135,30 @@ class AiGenerativeService
         }
 
         return $text;
+    }
+
+    /**
+     * One generateContent call. Separate so the request can be reissued with
+     * a different generationConfig without rebuilding everything around it.
+     *
+     * @param  array<string, mixed>  $generationConfig
+     */
+    private function send(string $url, string $apiKey, string $prompt, array $generationConfig): Response
+    {
+        return Http::timeout(config('services.gemini.timeout'))
+            // The key goes in a header, not ?key= in the URL. Guzzle puts the
+            // full effective URL into its ConnectionException message, so with
+            // the key as a query parameter every timeout or reset wrote the
+            // live API key into the log — and the caller handed that same
+            // message back to the user, so it also appeared in Telegram
+            // replies and the dashboard modal.
+            ->withHeaders(['x-goog-api-key' => $apiKey])
+            ->post($url, [
+                'contents' => [
+                    ['parts' => [['text' => $prompt]]],
+                ],
+                'generationConfig' => $generationConfig,
+            ]);
     }
 
     /**
