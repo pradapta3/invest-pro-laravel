@@ -55,12 +55,18 @@
             // Every statistic above is computed from $result over the complete
             // set, so capping the listing changes no number on this page; it
             // only stops the browser being handed a table nobody scrolls.
+            $universe = (int) config('screener.backtest_universe', 150);
             $tradeLimit = 200;
             $shownTrades = $result->trades->sortByDesc(fn ($t) => $t->exitDate->timestamp)->take($tradeLimit);
             $hiddenTrades = $result->tradeCount() - $shownTrades->count();
         @endphp
         <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm flex flex-wrap items-center justify-between gap-2">
-            <span>Semua Trade ({{ number_format($result->tradeCount()) }})</span>
+            <span>
+                Semua Trade ({{ number_format($result->tradeCount()) }})
+                @if ($universe > 0)
+                    <span class="font-semibold text-slate-400">— {{ $universe }} emiten paling likuid</span>
+                @endif
+            </span>
             @if ($hiddenTrades > 0)
                 <span class="text-xs font-semibold text-slate-400">
                     menampilkan {{ number_format($tradeLimit) }} terbaru — {{ number_format($hiddenTrades) }} lainnya tidak ditampilkan

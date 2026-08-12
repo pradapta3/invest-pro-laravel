@@ -42,6 +42,19 @@ return [
 
     'realtime_cron' => env('IDX_REALTIME_CRON', '*/5 * * * *'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Backtest universe
+    |--------------------------------------------------------------------------
+    |
+    | How many tickers a backtest covers when none are named, ranked by traded
+    | value. See BacktestEngine::defaultUniverse() for why this is capped at
+    | all. 0 means every ticker that has price history.
+    |
+    */
+
+    'backtest_universe' => (int) env('BACKTEST_UNIVERSE', 150),
+
 
     'baseline' => [
         // Applied by every strategy before its own filters, matching the

@@ -2,6 +2,7 @@
 
 namespace App\Services\Backtesting;
 
+use App\Models\StockPrice;
 use App\Models\StockPriceHistory;
 use App\Services\TechnicalAnalysisService;
 use App\ValueObjects\BacktestResult;
@@ -58,7 +59,7 @@ class BacktestEngine
         $this->assertSupported($strategy);
 
         $cfg = config('screener');
-        $tickers ??= StockPriceHistory::query()->distinct()->pluck('ticker');
+        $tickers ??= $this->defaultUniverse();
 
         $allTrades = collect();
         foreach ($tickers as $ticker) {
@@ -66,6 +67,37 @@ class BacktestEngine
         }
 
         return new BacktestResult($strategy, $from->copy(), $to->copy(), $allTrades);
+    }
+
+    /**
+     * The tickers a backtest covers when the caller does not name any.
+     *
+     * Deliberately not "every ticker with history". idx:update-realtime-quotes
+     * auto-registers the whole exchange, so that grew to ~900 names and one run
+     * took roughly half a minute — walk-forward, which runs the engine once per
+     * yearly period plus once over the whole range, took past 79 seconds and
+     * died at the edge proxy's 60s timeout with a 504.
+     *
+     * Ranking by value_transaction keeps the names an IDX trader would actually
+     * consider and drops the illiquid tail, whose thin, gappy bars make for
+     * unreliable statistics anyway. Set BACKTEST_UNIVERSE=0 to restore the
+     * scan-everything behaviour.
+     */
+    private function defaultUniverse(): Collection
+    {
+        $limit = (int) config('screener.backtest_universe', 150);
+
+        $withHistory = StockPriceHistory::query()->distinct()->pluck('ticker');
+
+        if ($limit <= 0) {
+            return $withHistory;
+        }
+
+        return StockPrice::query()
+            ->whereIn('ticker', $withHistory)
+            ->orderByDesc('value_transaction')
+            ->limit($limit)
+            ->pluck('ticker');
     }
 
     /**

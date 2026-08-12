@@ -263,6 +263,33 @@ Jadwal otomatisnya ada di `routes/console.php` dan dijalankan container
 
 ---
 
+## Batas waktu request
+
+Ada empat timeout bertingkat, dan **yang terluar yang menentukan**:
+
+| Lapisan | Batas | Diatur di |
+|---|---|---|
+| nginx-proxy (edge) | **60 detik** (default) | container milik host, di luar repo ini |
+| nginx dalam container | 120 detik | `docker/nginx/nginx.conf` |
+| php-fpm | 130 detik | `docker/php/php-fpm.conf` |
+| PHP | 110 detik | `docker/php/php.ini` |
+
+Kalau muncul **504 Gateway Time-out dari nginx**, itu lapisan pertama — bukan
+aplikasi. Halaman terberat adalah backtest; cakupannya dibatasi
+`BACKTEST_UNIVERSE` (default 150 emiten paling likuid) supaya jauh di bawah 60
+detik. Menyetel `BACKTEST_UNIVERSE=0` memindai seluruh bursa dan akan kembali
+menembus batas itu.
+
+Kalau Anda memang perlu request yang lebih panjang, naikkan di nginx-proxy
+dengan file per-vhost:
+
+```bash
+docker exec nginx-proxy sh -c 'echo "proxy_read_timeout 180s;" > /etc/nginx/vhost.d/dompetijo.mbayar.my.id'
+docker exec nginx-proxy nginx -s reload
+```
+
+---
+
 ## Troubleshooting
 
 **Sertifikat tidak terbit / situs tetap http**
