@@ -347,7 +347,7 @@ class TelegramBotService
             "🛒 Entry: <code>{$plan->entryText()}</code>",
             '✅ Target: <code>'.number_format($plan->takeProfit).'</code>',
             '🛑 Stoploss: <code>'.number_format($plan->stopLoss).'</code>',
-            "⚖️ RRR: 1 : {$plan->riskRewardRatio}",
+            '⚖️ RRR: '.$plan->riskRewardText().($plan->risksMoreThanItTargets() ? ' ⚠️ risiko > target' : ''),
             '',
             '💡 <i>Data Realtime. Disclaimer On.</i>',
         ];
@@ -373,7 +373,7 @@ class TelegramBotService
             '--------------------------------',
             "📊 Score: <b>{$score->total()}/100</b> (".$this->verdictWithEmoji($score).')',
             '💰 Price: '.number_format((float) $price->close_price),
-            "⚖️ R/R Ratio: <b>1:{$plan->riskRewardRatio}</b>",
+            '⚖️ R/R Ratio: <b>'.$plan->riskRewardText().'</b>'.($plan->risksMoreThanItTargets() ? ' ⚠️ risiko &gt; target' : ''),
             "🌊 Flow: {$flow}",
             '',
             '🎯 <b>TRADING PLAN:</b>',

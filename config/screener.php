@@ -181,6 +181,12 @@ return [
         'swing' => [
             'entry_band_pct' => 0.01,
             'stop_loss_buffer_pct' => 0.03,
+            // Entering at market leaves the stop a pivot range plus this
+            // buffer below, while R1 sits a fraction of that above — so the
+            // first pivot target was losing on risk/reward in every session
+            // measured. Below this ratio the plan reaches for R2 instead.
+            // Set to 0 to always target R1, whatever the ratio.
+            'min_risk_reward' => 1.0,
         ],
         'bsjp' => [
             'take_profit_pct' => 0.03,
