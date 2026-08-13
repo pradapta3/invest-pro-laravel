@@ -12,7 +12,7 @@
 
 <a href="{{ $href }}" class="{{ $classes }}">
     @if ($icon)
-        <i class="fa-solid {{ $icon }}"></i>
+        <x-icon :name="$icon" class="w-3.5 h-3.5" :solid="true" />
     @endif
     {{ $slot }}
 </a>

@@ -6,7 +6,7 @@
 <div class="flex justify-between items-center mb-4">
     <h1 class="text-lg font-extrabold">Invest<span class="text-primary">Pro</span></h1>
     <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-deposit-modal'))" class="rounded-full bg-slate-900 text-white font-bold px-4 py-2 text-sm hover:bg-slate-700 transition">
-        <i class="fa-solid fa-plus mr-2"></i>Top Up
+        <x-icon name="plus" class="mr-2 w-4 h-4" :solid="true" />Top Up
     </button>
 </div>
 
@@ -47,8 +47,8 @@
         <div>
             <h2 class="font-bold">Performance Analytics</h2>
             <div class="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                <span><i class="fa-solid fa-circle text-primary mr-1"></i>Portfolio</span>
-                <span><i class="fa-solid fa-circle text-slate-300 mr-1"></i>IHSG</span>
+                <span><x-icon name="circle" class="text-primary mr-1 w-4 h-4" :solid="true" />Portfolio</span>
+                <span><x-icon name="circle" class="text-slate-300 mr-1 w-4 h-4" :solid="true" />IHSG</span>
                 <span id="lblPort" class="font-mono font-bold ml-2">-</span>
             </div>
         </div>
@@ -91,7 +91,7 @@
                         <td class="text-right px-2 py-3 font-mono text-slate-400">{{ number_format($h->position->avg_price) }}</td>
                         <td class="text-right px-2 py-3 font-mono font-bold">
                             {{ number_format($h->currentPrice) }}
-                            @if ($h->isLivePrice)<i class="fa-solid fa-circle text-emerald-500 text-[8px] ml-1" title="Live"></i>@endif
+                            @if ($h->isLivePrice)<x-icon name="circle" class="text-emerald-500 text-[8px] ml-1 w-4 h-4" :solid="true" title="Live" />@endif
                         </td>
                         <td class="text-right px-2 py-3 font-mono font-bold">{{ number_format($h->marketValue / 1_000_000, 1) }} Jt</td>
                         <td class="text-right px-2 py-3">
@@ -112,7 +112,7 @@
 </div>
 
 <div class="bg-white border border-slate-200 rounded-2xl mb-8 overflow-hidden">
-    <div class="p-4 border-b border-slate-100"><h2 class="font-bold"><i class="fa-solid fa-clock-rotate-left mr-2 text-slate-400"></i>Transaction History</h2></div>
+    <div class="p-4 border-b border-slate-100"><h2 class="font-bold"><x-icon name="clock-rotate-left" class="mr-2 text-slate-400 w-4 h-4" :solid="true" />Transaction History</h2></div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-slate-50 text-xs uppercase text-slate-400">
@@ -148,7 +148,7 @@
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-bold" :class="action === 'sell' ? 'text-red-600' : 'text-primary'" x-text="action === 'sell' ? 'SELL' : 'BUY'"></h3>
-            <button @click="open = false"><i class="fa-solid fa-xmark text-slate-400"></i></button>
+            <button @click="open = false"><x-icon name="xmark" class="text-slate-400 w-4 h-4" :solid="true" /></button>
         </div>
         <form method="POST" action="{{ route('portfolio.trade') }}">
             @csrf
@@ -174,7 +174,7 @@
 
 <div x-data="{ open: false }" x-cloak @open-deposit-modal.window="open = true" x-show="open" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5">
-        <div class="flex items-center justify-between mb-3"><h3 class="font-bold">Add Cash</h3><button @click="open = false"><i class="fa-solid fa-xmark text-slate-400"></i></button></div>
+        <div class="flex items-center justify-between mb-3"><h3 class="font-bold">Add Cash</h3><button @click="open = false"><x-icon name="xmark" class="text-slate-400 w-4 h-4" :solid="true" /></button></div>
         <form method="POST" action="{{ route('portfolio.deposit') }}">
             @csrf
             <label class="block text-xs font-bold text-slate-500 mb-1">Amount (IDR)</label>
@@ -236,7 +236,11 @@ function renderChart(data) {
         },
     });
 }
-loadChart('1mo', null);
+// The libraries are bundled now, and the bundle is loaded as a module.
+// Modules are deferred, so they run after the HTML is parsed but before
+// DOMContentLoaded — meaning Chart does not exist while this inline script
+// is being parsed, only by the time this listener fires.
+document.addEventListener('DOMContentLoaded', () => loadChart('1mo', null));
 </script>
 @endpush
 @endsection

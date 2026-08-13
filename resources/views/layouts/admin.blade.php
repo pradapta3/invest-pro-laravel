@@ -5,21 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Admin — IDX Invest')</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = { darkMode: 'class', theme: { extend: { colors: { primary: '#4f46e5' }, fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] } } } };
-        </script>
-    @endif
 
     @include('partials.theme')
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     {{-- Kept for any Alpine component added to an admin page later: without it
          x-cloak elements paint before Alpine binds. The drawer below no longer
          relies on either. --}}
@@ -34,7 +23,7 @@
     <div class="md:hidden fixed top-0 inset-x-0 z-30 h-14 bg-slate-900 text-white flex items-center gap-3 px-4">
         <button type="button" id="side-open" aria-label="Buka menu" aria-controls="admin-side" aria-expanded="false"
                 class="inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-800 transition">
-            <i class="fa-solid fa-bars"></i>
+            <x-icon name="bars" class="w-4 h-4" :solid="true" />
         </button>
         <span class="text-base font-extrabold">DOMPET IJO</span>
         <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Admin</span>
@@ -60,18 +49,18 @@
             </div>
             <button type="button" id="side-close" aria-label="Tutup menu"
                     class="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-800 transition">
-                <i class="fa-solid fa-xmark"></i>
+                <x-icon name="xmark" class="w-4 h-4" :solid="true" />
             </button>
         </div>
         <nav class="flex-1 p-3 space-y-1 text-sm font-semibold">
             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg {{ request()->routeIs('admin.dashboard') ? 'bg-primary text-white' : 'hover:bg-slate-800' }}">
-                <i class="fa-solid fa-chart-pie w-4"></i> Dashboard
+                <x-icon name="chart-pie" class="w-4" :solid="true" /> Dashboard
             </a>
             <a href="{{ route('admin.users.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary text-white' : 'hover:bg-slate-800' }}">
-                <i class="fa-solid fa-users w-4"></i> Pengguna
+                <x-icon name="users" class="w-4" :solid="true" /> Pengguna
             </a>
             <a href="{{ route('admin.plans.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg {{ request()->routeIs('admin.plans.*') ? 'bg-primary text-white' : 'hover:bg-slate-800' }}">
-                <i class="fa-solid fa-tags w-4"></i> Paket Langganan
+                <x-icon name="tags" class="w-4" :solid="true" /> Paket Langganan
             </a>
         </nav>
         <div class="p-3 border-t border-slate-800 space-y-1">
@@ -79,12 +68,12 @@
                 labelled
                 class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 text-left" />
             <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800">
-                <i class="fa-solid fa-arrow-left w-4"></i> Ke Aplikasi
+                <x-icon name="arrow-left" class="w-4" :solid="true" /> Ke Aplikasi
             </a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 text-left">
-                    <i class="fa-solid fa-right-from-bracket w-4"></i> Keluar
+                    <x-icon name="right-from-bracket" class="w-4" :solid="true" /> Keluar
                 </button>
             </form>
         </div>

@@ -5,7 +5,7 @@
 @section('content')
 <div class="flex justify-between items-center mb-4">
     <div class="flex items-center gap-3">
-        <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dash</a>
+        <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dash</a>
         <h1 class="text-lg font-extrabold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">MARKET MAP</h1>
     </div>
     <div class="hidden md:block text-right">
@@ -22,7 +22,7 @@
 
 @if ($stockCount < 5)
     <div class="text-center py-16 bg-white border border-slate-200 rounded-2xl">
-        <i class="fa-solid fa-database fa-3x text-slate-200 mb-4"></i>
+        <x-icon name="database" class="text-slate-200 mb-4 w-4 h-4" :solid="true" />
         <h4 class="font-bold">Data Belum Siap</h4>
         <p class="text-slate-400 mb-4">Silakan jalankan update market terlebih dahulu.</p>
         <code class="text-xs bg-slate-100 rounded px-2 py-1">php artisan idx:update-market-data</code>
@@ -58,7 +58,13 @@ function chartChrome() {
 }
 
 var el = document.getElementById('heatmapChart');
-if (el) {
+
+// ECharts is around a megabyte — several times the rest of the bundle — and
+// this is the only page that draws with it, so app.js keeps it behind a
+// dynamic import and every other page never downloads it. The promise also
+// covers the module-deferral problem: `echarts` did not exist at parse time
+// once it stopped arriving from a blocking CDN tag.
+if (el) window.loadECharts().then(function (echarts) {
     var chart = echarts.init(el);
     var formatted = rawData.map(sector => ({
         name: sector.name,
@@ -109,7 +115,7 @@ if (el) {
         });
     });
     chart.on('click', (params) => { if (params.data?.name) window.location.href = `/stocks/${params.data.name}`; });
-}
+});
 </script>
 @endpush
 @endsection

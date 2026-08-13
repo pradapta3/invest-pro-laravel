@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-xl font-extrabold"><i class="fa-solid fa-bell text-amber-500 mr-2"></i>Price Alert</h1>
+    <h1 class="text-xl font-extrabold"><x-icon name="bell" class="text-amber-500 mr-2 w-4 h-4" :solid="true" />Price Alert</h1>
     <a href="{{ route('dashboard') }}" class="text-sm font-bold border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition">&laquo; Dashboard</a>
 </div>
 
@@ -14,7 +14,7 @@
 
 @unless (auth()->user()->hasLinkedTelegram())
     <div class="bg-amber-50 text-amber-700 text-sm font-bold rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
-        <span><i class="fa-solid fa-triangle-exclamation mr-1"></i>Telegram belum terhubung — alert tidak akan terkirim.</span>
+        <span><x-icon name="triangle-exclamation" class="mr-1 w-4 h-4" :solid="true" />Telegram belum terhubung — alert tidak akan terkirim.</span>
         <a href="{{ route('telegram.link') }}" class="underline">Hubungkan sekarang</a>
     </div>
 @endunless
@@ -86,7 +86,7 @@
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-slate-400 hover:text-red-600" title="Hapus">
-                                        <i class="fa-solid fa-trash"></i>
+                                        <x-icon name="trash" class="w-4 h-4" :solid="true" />
                                     </button>
                                 </form>
                             </td>

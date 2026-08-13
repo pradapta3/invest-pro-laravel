@@ -134,11 +134,11 @@ class DashboardController extends Controller
         $pct = $this->screener->marketBreadthPct();
 
         return match (true) {
-            $pct >= 70 => ['pct' => $pct, 'label' => 'Greed', 'color' => '#ef4444', 'icon' => 'fa-fire'],
-            $pct >= 55 => ['pct' => $pct, 'label' => 'Bullish', 'color' => '#22c55e', 'icon' => 'fa-arrow-trend-up'],
-            $pct <= 30 => ['pct' => $pct, 'label' => 'Fear', 'color' => '#3b82f6', 'icon' => 'fa-snowflake'],
-            $pct <= 45 => ['pct' => $pct, 'label' => 'Bearish', 'color' => '#64748b', 'icon' => 'fa-cloud-rain'],
-            default => ['pct' => $pct, 'label' => 'Neutral', 'color' => '#f59e0b', 'icon' => 'fa-scale-balanced'],
+            $pct >= 70 => ['pct' => $pct, 'label' => 'Greed', 'color' => '#ef4444', 'icon' => 'fire'],
+            $pct >= 55 => ['pct' => $pct, 'label' => 'Bullish', 'color' => '#22c55e', 'icon' => 'arrow-trend-up'],
+            $pct <= 30 => ['pct' => $pct, 'label' => 'Fear', 'color' => '#3b82f6', 'icon' => 'snowflake'],
+            $pct <= 45 => ['pct' => $pct, 'label' => 'Bearish', 'color' => '#64748b', 'icon' => 'cloud-rain'],
+            default => ['pct' => $pct, 'label' => 'Neutral', 'color' => '#f59e0b', 'icon' => 'scale-balanced'],
         };
     }
 }

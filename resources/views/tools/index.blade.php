@@ -4,13 +4,13 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-xl font-extrabold"><i class="fa-solid fa-calculator text-primary mr-2"></i>Tools &amp; Kalkulator</h1>
+    <h1 class="text-xl font-extrabold"><x-icon name="calculator" class="text-primary mr-2 w-4 h-4" :solid="true" />Tools &amp; Kalkulator</h1>
     <a href="{{ route('dashboard') }}" class="text-sm font-bold border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition">&laquo; Dashboard</a>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm"><i class="fa-solid fa-layer-group text-amber-500 mr-2"></i>Average Down Helper</div>
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm"><x-icon name="layer-group" class="text-amber-500 mr-2 w-4 h-4" :solid="true" />Average Down Helper</div>
         <div class="p-4">
             <label class="block text-xs font-bold text-slate-500 mb-1">Posisi Sekarang — Harga Avg</label>
             <input type="number" id="avgPrice" placeholder="Contoh: 1000" class="w-full rounded-lg border border-slate-200 px-3 py-2 mb-2">
@@ -34,7 +34,7 @@
     </div>
 
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm"><i class="fa-solid fa-chart-line text-emerald-500 mr-2"></i>Investment Forecasting</div>
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm"><x-icon name="chart-line" class="text-emerald-500 mr-2 w-4 h-4" :solid="true" />Investment Forecasting</div>
         <div class="p-4">
             <label class="block text-xs font-bold text-slate-500 mb-1">Modal Awal (Rp)</label>
             <input type="number" id="fcModal" value="10000000" class="w-full rounded-lg border border-slate-200 px-3 py-2 mb-2">

@@ -4,8 +4,8 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-4">
-    <h1 class="text-xl font-extrabold"><i class="fa-solid fa-ghost text-primary mr-2"></i>Ghost Hunter Pattern</h1>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <h1 class="text-xl font-extrabold"><x-icon name="ghost" class="text-primary mr-2 w-4 h-4" :solid="true" />Ghost Hunter Pattern</h1>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 <form method="GET" class="mb-4 flex gap-2 max-w-sm">
@@ -17,7 +17,7 @@
     <div class="text-center py-16 bg-white border border-slate-200 rounded-2xl text-slate-400">Data historis {{ $ticker }} tidak ditemukan.</div>
 @elseif ($matches->isEmpty())
     <div class="text-center py-16 bg-white border border-slate-200 rounded-2xl">
-        <i class="fa-solid fa-ghost fa-3x text-slate-200 mb-4"></i>
+        <x-icon name="ghost" class="text-slate-200 mb-4 w-4 h-4" :solid="true" />
         <p class="text-slate-400">Tidak ditemukan pola yang mirip (korelasi &gt; 60%) untuk {{ $ticker }}.</p>
     </div>
 @else

@@ -5,76 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'IDX Invest')</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    @if (file_exists(public_path('build/manifest.json')))
-        {{-- Compiled by `npm run build` --}}
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        {{-- Node.js isn't installed on this machine yet, so the Vite build
-             hasn't been run. This CDN fallback keeps the app usable in the
-             meantime; run `npm install && npm run build` and this switches
-             to the compiled assets automatically. --}}
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = {
-                darkMode: 'class',
-                theme: {
-                    extend: {
-                        colors: { primary: '#4f46e5' },
-                        fontFamily: {
-                            sans: ['Plus Jakarta Sans', 'sans-serif'],
-                            mono: ['Roboto Mono', 'monospace'],
-                        },
-                    },
-                },
-            };
-        </script>
-        <style>.font-num { font-family: 'Roboto Mono', monospace; }</style>
-    @endif
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @include('partials.theme')
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
 
-    <script>
-    // Chart.js paints its axis labels and gridlines onto a canvas, so no CSS
-    // reaches them: left alone they stay near-black on a dark card. Set here,
-    // before any page builds its charts, and re-applied on the theme-changed
-    // event so a mid-session switch does not need a reload.
-    //
-    // Charts are found by walking the canvases rather than by each view
-    // registering itself, so no chart page has to know about this.
-    (function () {
-        function applyChartTheme() {
-            if (!window.Chart) return;
-
-            var dark = document.documentElement.classList.contains('dark');
-
-            Chart.defaults.color = dark ? '#a3b0c8' : '#64748b';
-            Chart.defaults.borderColor = dark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(100, 116, 139, 0.15)';
-        }
-
-        applyChartTheme();
-
-        window.addEventListener('theme-changed', function () {
-            applyChartTheme();
-
-            document.querySelectorAll('canvas').forEach(function (canvas) {
-                var chart = window.Chart && Chart.getChart(canvas);
-                if (chart) chart.update();
-            });
-        });
-    })();
-    </script>
 
     @stack('head')
 </head>
@@ -111,7 +48,7 @@
                 <span class="hidden sm:inline-flex items-center text-sm font-bold gap-1 whitespace-nowrap"
                       style="color: {{ $marketMood['color'] }}"
                       title="{{ $marketMood['pct'] }}% emiten ditutup di atas MA20-nya. Ini lebar pasar, bukan pergerakan IHSG hari ini.">
-                    <i class="fa-solid {{ $marketMood['icon'] }}"></i>
+                    <x-icon :name="$marketMood['icon']" class="w-4 h-4" :solid="true" />
                     {{ $marketMood['pct'] }}% {{ $marketMood['label'] }}
                     <span class="font-normal text-slate-400 text-xs">di atas MA20</span>
                 </span>
@@ -134,7 +71,11 @@
 
         <button type="button" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu"
                 class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
-            <i id="nav-toggle-icon" class="fa-solid fa-bars"></i>
+            {{-- Both states in the markup, one hidden — the icons are SVG now,
+                 so there is no class to swap the way the Font Awesome glyph
+                 allowed. --}}
+            <x-icon name="bars" class="w-4 h-4" data-nav-icon="closed" />
+            <x-icon name="xmark" class="w-4 h-4 hidden" data-nav-icon="open" />
         </button>
 
         {{-- `hidden md:flex` is the no-JavaScript baseline: collapsed on a phone,
@@ -143,15 +84,15 @@
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="inline-flex items-center gap-2 rounded-lg bg-primary text-white px-3 py-2 hover:bg-indigo-700 transition">
-                    <i class="fa-solid fa-robot"></i> Analisa
+                    <x-icon name="robot" class="w-4 h-4" :solid="true" /> Analisa
                 </button>
                 <div x-show="open" x-cloak class="absolute right-0 mt-2 w-48 rounded-xl bg-white shadow-lg border border-slate-200 py-2 z-40">
                     {{-- Each group is hidden unless the subscriber's plan covers it,
                          so the menu never offers a link that answers 403. The
                          separators live inside the groups for the same reason. --}}
                     @if (auth()->user()?->planAllows('scanner'))
-                        <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i>Titan Sniper</a>
-                        <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-layer-group text-primary mr-2"></i>Quant Alpha</a>
+                        <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="bolt" class="text-amber-500 mr-2 w-4 h-4" :solid="true" />Titan Sniper</a>
+                        <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="layer-group" class="text-primary mr-2 w-4 h-4" :solid="true" />Quant Alpha</a>
                     @endif
                     @if (auth()->user()?->planAllows('pattern'))
                         @if (auth()->user()?->planAllows('scanner'))<hr class="my-1 border-slate-100">@endif
@@ -160,7 +101,7 @@
                     @endif
                     @if (auth()->user()?->planAllows('backtest'))
                         @if (auth()->user()?->planAllows('scanner') || auth()->user()?->planAllows('pattern'))<hr class="my-1 border-slate-100">@endif
-                        <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-flask mr-2 text-emerald-600"></i>Backtest</a>
+                        <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="flask" class="mr-2 text-emerald-600 w-4 h-4" :solid="true" />Backtest</a>
                     @endif
                 </div>
             </div>
@@ -168,43 +109,43 @@
             @if (auth()->user()?->is_admin)
                 <button type="button" onclick="broadcastDigest(this)" title="Broadcast Top Picks"
                         class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition">
-                    <i class="fa-brands fa-telegram"></i>
+                    <x-icon name="telegram" class="w-4 h-4" :solid="true" />
                 </button>
             @endif
 
             @if (auth()->user()?->planAllows('telegram'))
                 <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
                class="inline-flex items-center justify-center w-10 h-10 rounded-lg border transition {{ auth()->user()?->hasLinkedTelegram() ? 'bg-white border-slate-200 text-sky-500 hover:bg-slate-50' : 'bg-white border-amber-300 text-amber-500 hover:bg-slate-50' }}">
-                <i class="fa-brands fa-telegram"></i>
+                <x-icon name="telegram" class="w-4 h-4" :solid="true" />
             </a>
             @endif
 
             <a href="{{ route('alerts.index') }}" title="Price Alert" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-bell"></i>
+                <x-icon name="bell" class="w-4 h-4" :solid="true" />
             </a>
 
             @if (auth()->user()?->planAllows('heatmap'))
             <a href="{{ route('heatmap.index') }}" title="Market Map" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-map"></i>
+                <x-icon name="map" class="w-4 h-4" :solid="true" />
             </a>
             @endif
             <a href="{{ route('news.index') }}" title="News" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-red-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-newspaper"></i>
+                <x-icon name="newspaper" class="w-4 h-4" :solid="true" />
             </a>
             @if (auth()->user()?->planAllows('tools'))
             <a href="{{ route('tools.index') }}" title="Tools" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-primary hover:bg-slate-50 transition">
-                <i class="fa-solid fa-calculator"></i>
+                <x-icon name="calculator" class="w-4 h-4" :solid="true" />
             </a>
             @endif
             <a href="{{ route('portfolio.index') }}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-200 text-emerald-600 px-3 py-2 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-wallet"></i> Porto
+                <x-icon name="wallet" class="w-4 h-4" :solid="true" /> Porto
             </a>
 
             @if (auth()->user()?->is_admin)
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open" @click.outside="open = false" title="Data Updater"
                             class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                        <i class="fa-solid fa-database"></i>
+                        <x-icon name="database" class="w-4 h-4" :solid="true" />
                     </button>
                     <div x-show="open" x-cloak class="absolute right-0 mt-2 w-56 rounded-xl bg-white shadow-lg border border-slate-200 py-2 z-40">
                         <div class="px-4 py-1 text-[10px] font-bold uppercase text-slate-400">Data Updater</div>
@@ -217,7 +158,7 @@
                     </div>
                 </div>
                 <a href="{{ route('admin.dashboard') }}" title="Admin" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition">
-                    <i class="fa-solid fa-user-shield"></i>
+                    <x-icon name="user-shield" class="w-4 h-4" :solid="true" />
                 </a>
             @endif
 
@@ -228,7 +169,7 @@
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" title="Keluar" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
-                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <x-icon name="right-from-bracket" class="w-4 h-4" :solid="true" />
                 </button>
             </form>
         </nav>
@@ -241,7 +182,7 @@
 (function () {
     var btn = document.getElementById('nav-toggle');
     var nav = document.getElementById('main-nav');
-    var icon = document.getElementById('nav-toggle-icon');
+    var icons = btn.querySelectorAll('[data-nav-icon]');
     if (!btn || !nav) return;
 
     btn.addEventListener('click', function () {
@@ -250,10 +191,9 @@
         // this is a no-op there.
         var open = nav.classList.toggle('!flex');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (icon) {
-            icon.classList.toggle('fa-bars', !open);
-            icon.classList.toggle('fa-xmark', open);
-        }
+        icons.forEach(function (icon) {
+            icon.classList.toggle('hidden', (icon.dataset.navIcon === 'open') !== open);
+        });
     });
 })();
 </script>

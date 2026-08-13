@@ -15,10 +15,10 @@
 
 <div class="flex justify-between items-center mb-4">
     <div>
-        <h1 class="text-xl font-extrabold"><i class="fa-solid fa-flask text-emerald-600 mr-2"></i>Backtest</h1>
+        <h1 class="text-xl font-extrabold"><x-icon name="flask" class="text-emerald-600 mr-2 w-4 h-4" :solid="true" />Backtest</h1>
         <p class="text-sm text-slate-400">Uji strategi terhadap data historis asli, bukan asumsi.</p>
     </div>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 text-sm text-amber-800">
@@ -98,6 +98,12 @@
 @if ($result)
 <script>
 const equity = @json($result->equityCurve());
+
+// The libraries are bundled now, and the bundle is loaded as a module.
+// Modules are deferred, so they run after the HTML is parsed but before
+// DOMContentLoaded — meaning Chart does not exist while this inline script
+// is being parsed, only by the time this listener fires.
+document.addEventListener('DOMContentLoaded', function () {
 if (equity.length > 0) {
     const ctx = document.getElementById('equityChart').getContext('2d');
     new Chart(ctx, {
@@ -113,6 +119,7 @@ if (equity.length > 0) {
         },
     });
 }
+});
 </script>
 @endif
 @endpush

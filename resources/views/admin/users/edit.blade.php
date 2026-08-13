@@ -3,7 +3,7 @@
 @section('title', $user->name.' — Admin')
 
 @section('content')
-<a href="{{ route('admin.users.index') }}" class="text-sm text-slate-400 hover:text-slate-600 mb-4 inline-block"><i class="fa-solid fa-arrow-left mr-1"></i>Kembali</a>
+<a href="{{ route('admin.users.index') }}" class="text-sm text-slate-400 hover:text-slate-600 mb-4 inline-block"><x-icon name="arrow-left" class="mr-1 w-4 h-4" :solid="true" />Kembali</a>
 <h1 class="text-xl font-extrabold mb-6">{{ $user->name }}</h1>
 
 <div class="grid md:grid-cols-2 gap-6">
@@ -56,7 +56,7 @@
                     <input type="number" name="months" value="1" min="1" max="24" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 </div>
                 <button type="submit" class="w-full rounded-lg bg-emerald-600 text-white font-bold py-2 text-sm hover:bg-emerald-700">
-                    <i class="fa-solid fa-check mr-1"></i>Aktivasi
+                    <x-icon name="check" class="mr-1 w-4 h-4" :solid="true" />Aktivasi
                 </button>
             </form>
 

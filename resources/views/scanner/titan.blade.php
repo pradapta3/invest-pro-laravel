@@ -5,15 +5,15 @@
 @section('content')
 <div class="flex justify-between items-center mb-6">
     <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent"><i class="fa-solid fa-bolt mr-2"></i>TITAN RADAR</h1>
+        <h1 class="text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent"><x-icon name="bolt" class="mr-2 w-4 h-4" :solid="true" />TITAN RADAR</h1>
         <span class="text-xs font-bold bg-slate-900/10 text-slate-700 rounded-full px-3 py-1">{{ $signals->count() }} Detected</span>
     </div>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 @if ($signals->isEmpty())
     <div class="text-center py-16">
-        <i class="fa-solid fa-satellite-dish fa-3x text-slate-200 mb-4"></i>
+        <x-icon name="satellite-dish" class="text-slate-200 mb-4 w-4 h-4" :solid="true" />
         <h4 class="text-slate-400 font-bold">No Titan Activity</h4>
         <p class="text-slate-300 text-sm">Pasar sedang sepi. Tunggu ledakan volume berikutnya.</p>
     </div>
@@ -54,8 +54,8 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button onclick="sendSignal('{{ $t }}', 'titan')" class="w-9 h-9 shrink-0 rounded-lg bg-sky-100 text-sky-600 hover:bg-sky-600 hover:text-white transition flex items-center justify-center"><i class="fa-solid fa-paper-plane"></i></button>
-                    <a href="{{ route('stocks.show', $t) }}" class="flex-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition text-sm font-bold flex items-center justify-center gap-1">Check Chart <i class="fa-solid fa-arrow-right text-xs"></i></a>
+                    <button onclick="sendSignal('{{ $t }}', 'titan')" class="w-9 h-9 shrink-0 rounded-lg bg-sky-100 text-sky-600 hover:bg-sky-600 hover:text-white transition flex items-center justify-center"><x-icon name="paper-plane" class="w-4 h-4" :solid="true" /></button>
+                    <a href="{{ route('stocks.show', $t) }}" class="flex-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition text-sm font-bold flex items-center justify-center gap-1">Check Chart <x-icon name="arrow-right" class="text-xs w-4 h-4" :solid="true" /></a>
                 </div>
             </div>
         @endforeach

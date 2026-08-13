@@ -36,8 +36,8 @@
 >
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-            <h3 class="font-bold"><i class="fa-solid fa-robot mr-2"></i>Prophet AI: <span x-text="ticker"></span></h3>
-            <button @click="open = false" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="font-bold"><x-icon name="robot" class="mr-2 w-4 h-4" :solid="true" />Prophet AI: <span x-text="ticker"></span></h3>
+            <button @click="open = false" class="text-white/70 hover:text-white"><x-icon name="xmark" class="w-4 h-4" :solid="true" /></button>
         </div>
         <div class="p-5">
             <div class="grid grid-cols-3 gap-3 text-center mb-4">

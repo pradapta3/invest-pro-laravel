@@ -5,7 +5,7 @@
 @section('content')
 <div class="flex justify-between items-center mb-4">
     <div>
-        <h1 class="text-xl font-extrabold"><i class="fa-solid fa-brain text-primary mr-2"></i>Quant Scan</h1>
+        <h1 class="text-xl font-extrabold"><x-icon name="brain" class="text-primary mr-2 w-4 h-4" :solid="true" />Quant Scan</h1>
         <p class="text-sm text-slate-400">Math Regression + Gemini 2.0</p>
     </div>
     <a href="{{ route('dashboard') }}" class="text-sm font-bold border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50">Dashboard</a>

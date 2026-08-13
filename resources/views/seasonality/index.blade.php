@@ -4,8 +4,8 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-4">
-    <h1 class="text-xl font-extrabold"><i class="fa-regular fa-calendar-check text-primary mr-2"></i>Seasonal Compass</h1>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <h1 class="text-xl font-extrabold"><x-icon name="calendar-check" class="text-primary mr-2 w-4 h-4" />Seasonal Compass</h1>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 <form method="GET" class="mb-4 flex gap-2 max-w-sm">

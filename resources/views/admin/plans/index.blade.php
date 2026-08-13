@@ -6,7 +6,7 @@
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-xl font-extrabold">Paket Langganan</h1>
     <a href="{{ route('admin.plans.create') }}" class="rounded-lg bg-primary text-white font-bold px-4 py-2 text-sm hover:bg-indigo-700">
-        <i class="fa-solid fa-plus mr-1"></i>Paket Baru
+        <x-icon name="plus" class="mr-1 w-4 h-4" :solid="true" />Paket Baru
     </a>
 </div>
 

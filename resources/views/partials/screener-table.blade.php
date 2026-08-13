@@ -39,7 +39,7 @@
                         </td>
                         <td class="px-4 py-3 text-right">
                             <button onclick="analyzeStock('{{ $t }}')" class="rounded-full bg-slate-900 text-white text-xs font-bold px-3 py-1.5 hover:bg-slate-700 transition">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI
+                                <x-icon name="wand-magic-sparkles" class="w-4 h-4" :solid="true" /> AI
                             </button>
                         </td>
                     </tr>

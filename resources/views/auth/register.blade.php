@@ -46,7 +46,7 @@
                                 {{-- A key resolves to its label; anything else is a
                                      free-text bullet from before the checkboxes and
                                      is shown as written. --}}
-                                <li><i class="fa-solid fa-check text-emerald-500 mr-1"></i>{{ config('subscription.features.'.$feature, $feature) }}</li>
+                                <li><x-icon name="check" class="text-emerald-500 mr-1 w-4 h-4" :solid="true" />{{ config('subscription.features.'.$feature, $feature) }}</li>
                             @endforeach
                         </ul>
                     @endif

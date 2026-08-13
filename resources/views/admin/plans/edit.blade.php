@@ -3,7 +3,7 @@
 @section('title', ($plan->exists ? 'Edit Paket' : 'Paket Baru').' — Admin')
 
 @section('content')
-<a href="{{ route('admin.plans.index') }}" class="text-sm text-slate-400 hover:text-slate-600 mb-4 inline-block"><i class="fa-solid fa-arrow-left mr-1"></i>Kembali</a>
+<a href="{{ route('admin.plans.index') }}" class="text-sm text-slate-400 hover:text-slate-600 mb-4 inline-block"><x-icon name="arrow-left" class="mr-1 w-4 h-4" :solid="true" />Kembali</a>
 <h1 class="text-xl font-extrabold mb-6">{{ $plan->exists ? 'Edit Paket' : 'Paket Baru' }}</h1>
 
 <div class="bg-white border border-slate-200 rounded-2xl p-5 max-w-xl">

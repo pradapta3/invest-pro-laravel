@@ -40,11 +40,11 @@
     <div class="flex gap-2">
         <button type="button" onclick="sendSignal('{{ $ticker }}', '{{ $attributes->get('signal-format', 'standard') }}')"
                 class="w-9 h-9 shrink-0 rounded-lg bg-sky-100 text-sky-600 hover:bg-sky-600 hover:text-white transition flex items-center justify-center">
-            <i class="fa-solid fa-paper-plane"></i>
+            <x-icon name="paper-plane" class="w-4 h-4" :solid="true" />
         </button>
         @if ($detailUrl)
             <a href="{{ $detailUrl }}" class="flex-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition text-sm font-bold flex items-center justify-center gap-1">
-                Detail <i class="fa-solid fa-arrow-right text-xs"></i>
+                Detail <x-icon name="arrow-right" class="text-xs w-4 h-4" :solid="true" />
             </a>
         @endif
     </div>

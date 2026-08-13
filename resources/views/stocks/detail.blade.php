@@ -24,7 +24,7 @@
 
 <div class="bg-white border border-slate-200 rounded-2xl mb-4 p-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
-        <a href="{{ route('dashboard') }}" class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"><i class="fa-solid fa-arrow-left"></i></a>
+        <a href="{{ route('dashboard') }}" class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"><x-icon name="arrow-left" class="w-4 h-4" :solid="true" /></a>
         <div>
             <h1 class="text-2xl font-extrabold">{{ $cleanTicker }} <span class="text-base font-normal text-slate-400">{{ $ref->nama_perusahaan }}</span></h1>
             <div class="flex items-center gap-2 mt-1">
@@ -73,7 +73,7 @@
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs font-bold uppercase text-slate-500">
-                <span><i class="fa-regular fa-calendar-check mr-2"></i>Seasonality (5 Years)</span>
+                <span><x-icon name="calendar-check" class="mr-2 w-4 h-4" />Seasonality (5 Years)</span>
                 <span class="normal-case font-medium">Best: <b class="text-emerald-600">{{ \Carbon\Carbon::create()->month($seasonality['best']['month'])->translatedFormat('M') }}</b> · Worst: <b class="text-red-600">{{ \Carbon\Carbon::create()->month($seasonality['worst']['month'])->translatedFormat('M') }}</b></span>
             </div>
             <div class="p-4">
@@ -85,7 +85,7 @@
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500">
-                <i class="fa-solid fa-scale-balanced mr-2"></i>Sector Comparison ({{ $ref->sector }})
+                <x-icon name="scale-balanced" class="mr-2 w-4 h-4" :solid="true" />Sector Comparison ({{ $ref->sector }})
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-center text-sm">
@@ -127,7 +127,7 @@
     <div class="space-y-4">
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs font-bold uppercase text-slate-500">
-                <span><i class="fa-solid fa-brain mr-2 text-primary"></i>AI Verdict</span>
+                <span><x-icon name="brain" class="mr-2 text-primary w-4 h-4" :solid="true" />AI Verdict</span>
                 <span class="{{ $verdictColor }}">{{ $verdict }}</span>
             </div>
             <div class="p-4 space-y-3">
@@ -143,7 +143,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><i class="fa-solid fa-chart-pie mr-2"></i>Market Insight</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="chart-pie" class="mr-2 w-4 h-4" :solid="true" />Market Insight</div>
             <div class="p-4 grid grid-cols-2 gap-x-4 text-sm">
                 <div class="space-y-2 border-r border-slate-100 pr-3">
                     <div class="flex justify-between"><span class="text-slate-400">Volume</span><span class="font-bold">{{ number_format($price->volume) }}</span></div>
@@ -179,7 +179,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><i class="fa-solid fa-clock-rotate-left mr-2"></i>1-Year Backtest (MA20)</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="clock-rotate-left" class="mr-2 w-4 h-4" :solid="true" />1-Year Backtest (MA20)</div>
             <div class="p-4 flex justify-between text-center">
                 <div><div class="text-[10px] text-slate-400">TRADES</div><div class="font-bold">{{ $backtest['trades'] }}</div></div>
                 <div><div class="text-[10px] text-slate-400">WIN RATE</div><div class="font-bold">{{ $backtest['win_rate'] }}%</div></div>
@@ -189,19 +189,19 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><i class="fa-solid fa-newspaper mr-2"></i>News Sentiment</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="newspaper" class="mr-2 w-4 h-4" :solid="true" />News Sentiment</div>
             <div class="p-4 text-center">
                 @php
                     $sentScore = (int) ($price->sentiment_score ?? 0);
                     [$sLabel, $sColor, $sIcon] = match (true) {
-                        $sentScore >= 2 => ['VERY POSITIVE', 'text-emerald-600', 'fa-face-laugh-beam'],
-                        $sentScore == 1 => ['POSITIVE', 'text-primary', 'fa-face-smile'],
-                        $sentScore == 0 => ['NEUTRAL', 'text-slate-500', 'fa-face-meh'],
-                        $sentScore == -1 => ['NEGATIVE', 'text-amber-600', 'fa-face-frown'],
-                        default => ['VERY NEGATIVE', 'text-red-600', 'fa-face-dizzy'],
+                        $sentScore >= 2 => ['VERY POSITIVE', 'text-emerald-600', 'face-laugh-beam'],
+                        $sentScore == 1 => ['POSITIVE', 'text-primary', 'face-smile'],
+                        $sentScore == 0 => ['NEUTRAL', 'text-slate-500', 'face-meh'],
+                        $sentScore == -1 => ['NEGATIVE', 'text-amber-600', 'face-frown'],
+                        default => ['VERY NEGATIVE', 'text-red-600', 'face-dizzy'],
                     };
                 @endphp
-                <h4 class="font-bold text-lg {{ $sColor }}"><i class="fa-solid {{ $sIcon }}"></i> {{ $sLabel }}</h4>
+                <h4 class="font-bold text-lg {{ $sColor }}"><x-icon :name="$sIcon" class="inline w-5 h-5 align-text-bottom" /> {{ $sLabel }}</h4>
                 <div class="text-xs text-slate-400">AI Score: {{ $sentScore }}</div>
                 @if ($sentScore != 0 && $price->last_news_title)
                     <div class="mt-2 text-left bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs italic text-slate-600">"{{ \Illuminate\Support\Str::limit($price->last_news_title, 80) }}"</div>
@@ -213,7 +213,7 @@
 
 <div x-data="{ open: false }" @open-buy-modal.window="open = true" x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5">
-        <div class="flex items-center justify-between mb-3"><h3 class="font-bold">Quick Buy</h3><button @click="open = false"><i class="fa-solid fa-xmark text-slate-400"></i></button></div>
+        <div class="flex items-center justify-between mb-3"><h3 class="font-bold">Quick Buy</h3><button @click="open = false"><x-icon name="xmark" class="text-slate-400 w-4 h-4" :solid="true" /></button></div>
         <form method="POST" action="{{ route('portfolio.trade') }}">
             @csrf
             <input type="hidden" name="action" value="buy">
@@ -228,21 +228,51 @@
 </div>
 
 @push('scripts')
-<script src="https://s3.tradingview.com/tv.js"></script>
+{{-- The one remaining third-party script in the app, and the one that cannot
+     be bundled: it is a live charting service, not a library — the widget
+     streams TradingView's own price data from their servers. Loading it is the
+     whole point, so there is nothing to self-host.
+
+     What did change is what happens when it is unreachable. `new
+     TradingView.widget(...)` threw a ReferenceError that killed the rest of
+     this script, taking openBuyModal with it — so a blocked CDN turned the
+     chart panel into a permanently empty box *and* broke the buy button
+     further down the page. The guard keeps the failure local and says so on
+     screen. --}}
+<script src="https://s3.tradingview.com/tv.js" onerror="window.__tvFailed = true"></script>
 <script>
-new TradingView.widget({
-    autosize: true,
-    symbol: 'IDX:{{ $cleanTicker }}',
-    interval: 'D',
-    timezone: 'Asia/Jakarta',
-    theme: 'light',
-    style: '1',
-    locale: 'id',
-    toolbar_bg: '#f1f3f6',
-    enable_publishing: false,
-    container_id: 'tv_chart',
-    studies: ['MASimple@tv-basicstudies', 'RSI@tv-basicstudies'],
-});
+function mountTradingViewChart() {
+    var container = document.getElementById('tv_chart');
+    if (!container) return;
+
+    if (typeof TradingView === 'undefined') {
+        container.innerHTML =
+            '<div class="h-full flex flex-col items-center justify-center text-center p-6 gap-1">'
+            + '<div class="text-sm font-bold text-slate-500">Grafik TradingView tidak dapat dimuat</div>'
+            + '<div class="text-xs text-slate-400">Butuh akses ke s3.tradingview.com. Data harga di halaman ini tetap dari server sendiri.</div>'
+            + '</div>';
+
+        return;
+    }
+
+    new TradingView.widget({
+        autosize: true,
+        symbol: 'IDX:{{ $cleanTicker }}',
+        interval: 'D',
+        timezone: 'Asia/Jakarta',
+        // Follows the site's own setting rather than being pinned light, which
+        // put a white slab in the middle of a dark page.
+        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        style: '1',
+        locale: 'id',
+        toolbar_bg: document.documentElement.classList.contains('dark') ? '#131c2f' : '#f1f3f6',
+        enable_publishing: false,
+        container_id: 'tv_chart',
+        studies: ['MASimple@tv-basicstudies', 'RSI@tv-basicstudies'],
+    });
+}
+
+document.addEventListener('DOMContentLoaded', mountTradingViewChart);
 function openBuyModal(ticker, price) {
     window.dispatchEvent(new CustomEvent('open-buy-modal', { detail: { ticker, price } }));
 }

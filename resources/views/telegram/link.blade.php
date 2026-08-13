@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-xl font-extrabold"><i class="fa-brands fa-telegram text-sky-500 mr-2"></i>Pengaturan Telegram</h1>
+    <h1 class="text-xl font-extrabold"><x-icon name="telegram" class="text-sky-500 mr-2 w-4 h-4" :solid="true" />Pengaturan Telegram</h1>
     <a href="{{ route('dashboard') }}" class="text-sm font-bold border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition">&laquo; Dashboard</a>
 </div>
 
@@ -14,7 +14,7 @@
         @if ($user->hasLinkedTelegram())
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <i class="fa-solid fa-check"></i>
+                    <x-icon name="check" class="w-4 h-4" :solid="true" />
                 </div>
                 <div>
                     <div class="font-bold text-sm">Terhubung</div>
@@ -25,13 +25,13 @@
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="text-sm font-bold text-red-600 hover:text-red-700">
-                    <i class="fa-solid fa-link-slash mr-1"></i>Putuskan Koneksi
+                    <x-icon name="link-slash" class="mr-1 w-4 h-4" :solid="true" />Putuskan Koneksi
                 </button>
             </form>
         @else
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                    <i class="fa-solid fa-xmark"></i>
+                    <x-icon name="xmark" class="w-4 h-4" :solid="true" />
                 </div>
                 <div>
                     <div class="font-bold text-sm">Belum Terhubung</div>
@@ -65,7 +65,7 @@
                             <a href="https://t.me/{{ $botUsername }}?start={{ $user->telegram_link_code }}"
                                target="_blank"
                                class="block w-full text-center rounded-lg bg-sky-500 text-white font-bold py-2 hover:bg-sky-600 transition mb-2">
-                                <i class="fa-brands fa-telegram mr-1"></i>Buka Bot &amp; Hubungkan
+                                <x-icon name="telegram" class="mr-1 w-4 h-4" :solid="true" />Buka Bot &amp; Hubungkan
                             </a>
                         @endif
                         <p class="text-xs text-slate-500 text-center">
