@@ -222,11 +222,11 @@ class StockScreenerService
             $marketCap = (float) $row->stockRef->market_cap;
             $valueTransaction = (float) $row->value_transaction;
             $close = (float) $row->close_price;
-            $prevClose = (float) $row->prev_close;
-            $open = (float) $row->open_price;
 
-            $basePrice = $prevClose > 0 ? $prevClose : $open;
-            $changePct = $basePrice > 0 ? (($close - $basePrice) / $basePrice) * 100 : 0.0;
+            // This was the only surface computing the change correctly, and it
+            // did it inline; the rule lives on the model now so the dashboard,
+            // the detail page and the ticker tape cannot drift from it again.
+            $changePct = $row->dailyChangePct() ?? 0.0;
 
             $sizeMetric = $hasMarketCapData ? $marketCap : $valueTransaction;
             $minSize = $hasMarketCapData ? $cfg['min_market_cap'] : $cfg['min_transaction_value'];

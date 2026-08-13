@@ -102,9 +102,18 @@
             @endisset
 
             @isset($marketMood)
-                <span class="hidden sm:inline-flex items-center text-sm font-bold gap-1 whitespace-nowrap" style="color: {{ $marketMood['color'] }}">
+                {{-- Says what it measures. This is breadth — the share of the
+                     exchange trading above its own 20-day average — not the
+                     index's move today, and the two routinely disagree: IHSG
+                     can close down while most stocks are still above their
+                     20-day line. Labelled only "Greed" it read as "the market
+                     is up", which is not what it says. --}}
+                <span class="hidden sm:inline-flex items-center text-sm font-bold gap-1 whitespace-nowrap"
+                      style="color: {{ $marketMood['color'] }}"
+                      title="{{ $marketMood['pct'] }}% emiten ditutup di atas MA20-nya. Ini lebar pasar, bukan pergerakan IHSG hari ini.">
                     <i class="fa-solid {{ $marketMood['icon'] }}"></i>
                     {{ $marketMood['pct'] }}% {{ $marketMood['label'] }}
+                    <span class="font-normal text-slate-400 text-xs">di atas MA20</span>
                 </span>
             @endisset
         </div>
@@ -274,13 +283,23 @@
     <div class="whitespace-nowrap animate-[ticker_45s_linear_infinite] pl-full">
         @foreach ($tickerTape as $t)
             @php
-                $chg = (float) $t->close_price - (float) $t->open_price;
-                $pct = (float) $t->open_price > 0 ? ($chg / (float) $t->open_price) * 100 : 0;
+                // Against the previous close. This used to be close - open,
+                // i.e. the intraday drift only, so a stock that gapped down and
+                // then recovered a little showed an up arrow on a day it was
+                // down.
+                $chg = $t->dailyChange();
+                $pct = $t->dailyChangePct();
             @endphp
             <span class="inline-block px-4 text-xs font-mono font-semibold text-white">
                 {{ str_replace('.JK', '', $t->ticker) }}
-                <span class="{{ $chg >= 0 ? 'text-emerald-400' : 'text-red-400' }}">
-                    {{ $chg >= 0 ? '▲' : '▼' }} {{ number_format($t->close_price) }} ({{ round($pct, 2) }}%)
+                <span class="{{ match (true) {
+                    $chg === null => 'text-slate-400',
+                    $chg > 0 => 'text-emerald-400',
+                    $chg < 0 => 'text-red-400',
+                    default => 'text-slate-300',
+                } }}">
+                    {{ match (true) { $chg === null => '·', $chg > 0 => '▲', $chg < 0 => '▼', default => '=' } }}
+                    {{ number_format($t->close_price) }}{{ $pct === null ? '' : ' ('.round($pct, 2).'%)' }}
                 </span>
             </span>
         @endforeach

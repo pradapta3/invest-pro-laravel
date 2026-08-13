@@ -6,9 +6,11 @@
 @php
     $cleanTicker = str_replace('.JK', '', $ref->ticker);
     $close = (float) $price->close_price;
-    $open = (float) $price->open_price;
-    $change = $close - $open;
-    $changePct = $open > 0 ? ($change / $open) * 100 : 0;
+    // Against the previous close, like every broker screen — not against
+    // today's open, which was what this did and which silently drops the
+    // overnight gap.
+    $change = $price->dailyChange();
+    $changePct = $price->dailyChangePct();
     $verdict = $score->verdict();
     $verdictColor = match ($verdict) {
         'STRONG BUY' => 'text-emerald-600',
@@ -38,8 +40,25 @@
     </div>
     <div class="flex items-center gap-4">
         <div class="text-right">
-            <div class="text-2xl font-extrabold {{ $change >= 0 ? 'text-emerald-600' : 'text-red-600' }}">Rp {{ number_format($close) }}</div>
-            <div class="text-xs font-bold {{ $change >= 0 ? 'text-emerald-600' : 'text-red-600' }}">{{ $change >= 0 ? '+' : '' }}{{ number_format($change) }} ({{ number_format($changePct, 2) }}%)</div>
+            @php
+                // null is its own case, not "flat": with no previous close and
+                // no open there is nothing to compare against, and `>= 0` would
+                // paint that green.
+                $changeColor = match (true) {
+                    $change === null => 'text-slate-400',
+                    $change > 0 => 'text-emerald-600',
+                    $change < 0 => 'text-red-600',
+                    default => 'text-slate-500',
+                };
+            @endphp
+            <div class="text-2xl font-extrabold {{ $changeColor }}">Rp {{ number_format($close) }}</div>
+            <div class="text-xs font-bold {{ $changeColor }}">
+                @if ($change === null)
+                    Perubahan harian belum tersedia
+                @else
+                    {{ $change > 0 ? '+' : '' }}{{ number_format($change) }} ({{ number_format($changePct, 2) }}%)
+                @endif
+            </div>
         </div>
         <div class="w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-lg {{ $verdictColor }} border-4 border-slate-100">{{ $score->total() }}</div>
         <button onclick="openBuyModal('{{ $cleanTicker }}', {{ $close }})" class="rounded-lg bg-primary text-white font-bold px-4 py-2 hover:bg-indigo-700 transition text-sm">BUY</button>

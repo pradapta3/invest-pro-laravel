@@ -42,6 +42,7 @@
                         $score = $ta->calculateScore($stock, $ref);
                         $plan = $ta->buildTradingPlan($stock, $filter === 'bsjp' ? 'bsjp' : 'swing');
                         $trendUp = $stock->isAboveMa20();
+                        $changePct = $stock->dailyChangePct();
                         $vwapStat = $stock->moneyFlow();
                         $cleanTicker = str_replace('.JK', '', $stock->ticker);
                         $isWatchlisted = in_array($stock->ticker, $watchlistedTickers, true);
@@ -63,14 +64,28 @@
                         </td>
                         <td class="px-2 py-3 text-center"><x-score-badge :score="$score->total()" class="mx-auto" /></td>
                         <td class="px-2 py-3">
-                            {{-- Grey, not red, when MA20 has not been computed: null here
-                                 means unknown, and a red line is a claim about direction. --}}
+                            {{-- The sparkline is 60 days, so it stays coloured by the
+                                 trend it actually draws. Grey when MA20 has not been
+                                 computed: null means unknown, and a red line is a
+                                 claim about direction. --}}
                             <x-sparkline :history="$stock->history_json ?? []" :color="match ($trendUp) { true => '#10b981', false => '#ef4444', default => '#94a3b8' }" />
-                            <div class="font-bold text-xs mt-1 {{ match ($trendUp) {
-                                true => 'text-emerald-600',
-                                false => 'text-red-600',
-                                default => 'text-slate-400',
-                            } }}">Rp {{ number_format($stock->close_price) }}</div>
+
+                            {{-- The price, though, is about today, and was coloured by
+                                 the MA20 trend — so a stock down 3% on the day still
+                                 showed green as long as it sat above its 20-day
+                                 average, which on a mildly negative session is most of
+                                 the board. The day's change is now both the colour and
+                                 a number, since a bare price cannot be read as up or
+                                 down at all. --}}
+                            <div class="font-bold text-xs mt-1 {{ match (true) {
+                                $changePct === null => 'text-slate-400',
+                                $changePct > 0 => 'text-emerald-600',
+                                $changePct < 0 => 'text-red-600',
+                                default => 'text-slate-500',
+                            } }}">
+                                Rp {{ number_format($stock->close_price) }}
+                                <span class="font-normal">{{ $changePct === null ? '' : '('.($changePct > 0 ? '+' : '').number_format($changePct, 2).'%)' }}</span>
+                            </div>
                         </td>
                         <td class="px-2 py-3 text-xs">
                             <div class="flex justify-between gap-2"><span class="text-slate-400">Entry</span><span class="font-bold text-primary">{{ $plan->entryText() }}</span></div>

@@ -100,6 +100,57 @@ class StockPrice extends Model
     }
 
     /**
+     * What today's move is measured against: the previous close, which is what
+     * IDX, every broker screen and every quote site mean by "change".
+     *
+     * Falls back to today's open when no previous close has been stored —
+     * that is the intraday move rather than the daily one, but it is a real
+     * number for today and the alternative is a dash on most of the board
+     * until the first end-of-day run lands. The heatmap already made this
+     * choice; the point of putting it here is that everywhere now makes the
+     * same one.
+     */
+    public function dailyChangeBase(): ?float
+    {
+        $prevClose = (float) $this->prev_close;
+
+        if ($prevClose > 0) {
+            return $prevClose;
+        }
+
+        $open = (float) $this->open_price;
+
+        return $open > 0 ? $open : null;
+    }
+
+    /**
+     * Today's move in rupiah, or null when there is nothing to compare against.
+     *
+     * Three surfaces each worked this out for themselves and two got it wrong:
+     * the detail page and the ticker tape used close - open, which measures
+     * only the intraday drift and throws away the overnight gap. On a falling
+     * market that is the difference between red and green — a stock that gaps
+     * down at the open and recovers a little through the session is down for
+     * the day but shows `close > open`. The heatmap alone compared against the
+     * previous close, so the same emiten could appear green on one page and
+     * red on another at the same moment.
+     */
+    public function dailyChange(): ?float
+    {
+        $base = $this->dailyChangeBase();
+
+        return $base === null ? null : (float) $this->close_price - $base;
+    }
+
+    public function dailyChangePct(): ?float
+    {
+        $base = $this->dailyChangeBase();
+        $change = $this->dailyChange();
+
+        return $base === null || $change === null ? null : ($change / $base) * 100;
+    }
+
+    /**
      * Whether this row's derived indicators — ma20, rsi_14, stoch_k,
      * macd_hist — have actually been computed.
      *
