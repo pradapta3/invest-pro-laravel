@@ -87,10 +87,17 @@ class YahooFinanceClient
      * out of reach there. This endpoint takes an explicit window instead, and
      * returns one series per requested type.
      *
+     * Returns null when the request could not be made at all — a timeout, a
+     * reset, or the circuit breaker already open — as distinct from an empty
+     * array, which means Yahoo answered and has no statements for this emiten.
+     * The caller records the second as a completed attempt and retries the
+     * first; collapsing them would let one upstream outage mark the whole
+     * exchange as freshly fetched and suppress retries for a month.
+     *
      * @param  array<int, string>  $types  e.g. ['annualTotalRevenue', 'annualNetIncome']
-     * @return array<int, array<string, mixed>> raw series, one entry per type
+     * @return array<int, array<string, mixed>>|null raw series, one entry per type
      */
-    public function fundamentalsTimeseries(string $ticker, array $types, int $years = 5): array
+    public function fundamentalsTimeseries(string $ticker, array $types, int $years = 5): ?array
     {
         $ticker = $this->normalizeTicker($ticker);
         $base = config('services.yahoo_finance.timeseries_url');
@@ -110,7 +117,11 @@ class YahooFinanceClient
             'crumb' => $this->crumb(),
         ]));
 
-        return $response?->json('timeseries.result') ?? [];
+        if ($response === null) {
+            return null;
+        }
+
+        return $response->json('timeseries.result') ?? [];
     }
 
     public function realtimeQuote(string $ticker): array

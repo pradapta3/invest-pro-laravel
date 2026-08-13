@@ -92,3 +92,22 @@ Schedule::command('idx:update-fundamentals')
     ->sundays()
     ->at('02:00')
     ->withoutOverlapping();
+
+// Annual statements for the stock detail page. Separate from the snapshot
+// above — different endpoint, different shape, and figures that move a few
+// times a year rather than weekly.
+//
+// A slice a day rather than the whole exchange at once. One request per emiten
+// means a full sweep is ~900 calls; spread over the refresh interval that is a
+// few dozen a night, each run finishes in under a minute, and a night that
+// fails costs one slice instead of the lot. The command orders by least
+// recently fetched, so consecutive runs rotate through rather than retrying
+// the same head of the list.
+//
+// 40 x 30 days covers roughly 1,200 emiten, comfortably more than IDX lists,
+// so every emiten is re-asked within the refresh interval and a newly filed
+// annual report shows up within a month of publication without anyone running
+// anything by hand.
+Schedule::command('idx:update-financials --limit=40')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(60);

@@ -26,6 +26,7 @@ class StockRef extends Model
         'div_yield',
         'der',
         'sector',
+        'financials_fetched_at',
     ];
 
     protected function casts(): array
@@ -37,6 +38,7 @@ class StockRef extends Model
             'roe' => 'decimal:2',
             'div_yield' => 'decimal:2',
             'der' => 'decimal:2',
+            'financials_fetched_at' => 'datetime',
         ];
     }
 

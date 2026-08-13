@@ -68,6 +68,18 @@ return [
 
     'financial_statement_years' => (int) env('FINANCIAL_STATEMENT_YEARS', 5),
 
+    /*
+    | How long an emiten's statements stay fresh before idx:update-financials
+    | asks again. Annual reports land at different times — IDX audited accounts
+    | are due at the end of March, but restatements and late filings arrive all
+    | year — so rather than modelling filing deadlines the command simply
+    | re-asks every emiten on this cycle and picks up whatever is new. The
+    | schedule runs daily on a slice, so the whole exchange rotates through in
+    | roughly this many days.
+    */
+
+    'financial_refresh_days' => (int) env('FINANCIAL_REFRESH_DAYS', 30),
+
 
     'baseline' => [
         // Applied by every strategy before its own filters, matching the
