@@ -28,12 +28,27 @@
                 @if($ihsg)
                     {{-- The index level is the one number worth keeping on a phone, so
                          it stays visible; the mood badge waits for a wider screen. --}}
-                    <span class="inline-flex items-center text-xs md:text-sm font-bold gap-1 whitespace-nowrap">
+                    @php
+                        // `>= 0` painted an unchanged index green, and painted a
+                        // stale figure — the last session Yahoo still serves once
+                        // the market is shut — as though it were today's move.
+                        $ihsgColor = match (true) {
+                            $ihsg['stale'] => 'text-slate-400',
+                            $ihsg['change'] > 0 => 'text-emerald-600',
+                            $ihsg['change'] < 0 => 'text-red-600',
+                            default => 'text-slate-500',
+                        };
+                    @endphp
+                    <span class="inline-flex items-center text-xs md:text-sm font-bold gap-1 whitespace-nowrap"
+                          title="{{ $ihsg['as_of']?->translatedFormat('D, d M Y H:i') ?? 'Waktu tidak diketahui' }}{{ $ihsg['stale'] ? ' — sesi terakhir, bukan hari ini' : '' }}">
                         <span class="text-slate-400">IHSG</span>
-                        <span class="{{ $ihsg['change'] >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
-                            {{ number_format($ihsg['price']) }}
-                            ({{ $ihsg['change'] >= 0 ? '+' : '' }}{{ round($ihsg['pct'], 2) }}%)
+                        <span class="{{ $ihsgColor }}">
+                            {{ number_format($ihsg['price'], 2) }}
+                            ({{ $ihsg['change'] > 0 ? '+' : '' }}{{ round($ihsg['pct'], 2) }}%)
                         </span>
+                        @if ($ihsg['stale'])
+                            <span class="font-normal text-[10px] text-slate-400">{{ $ihsg['as_of']?->translatedFormat('d M') }}</span>
+                        @endif
                     </span>
                 @endif
             @endisset

@@ -144,8 +144,10 @@ class YahooFinanceClient
      * TLS, connection reset, or services.yahoo_finance.timeout expiring —
      * throws instead, and used to escape to the caller. That took the whole
      * dashboard down with it, because DashboardController reaches chart()
-     * synchronously through MarketDataService::indexQuote() while rendering
-     * the landing page. Every caller already treats an empty result as "no
+     * through MarketDataService::indexQuote() while rendering the landing page
+     * — behind a short cache now, so once every couple of minutes rather than
+     * once per request, but still in the request path. Every caller already
+     * treats an empty result as "no
      * data" (indexQuote returns null, and layouts/app.blade.php renders the
      * IHSG ticker only @if($ihsg)), so a dead upstream degrades to that.
      */

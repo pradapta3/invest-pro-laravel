@@ -2,6 +2,9 @@
 
 namespace App\Services\MarketData;
 
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+
 /**
  * Single entry point for all external market-data access. Controllers,
  * console commands and other services should depend on this, never on
@@ -97,23 +100,72 @@ class MarketDataService
     /**
      * @return array{price: float, change: float, pct: float}|null
      */
+    /**
+     * The IHSG level and its move against the previous session's close.
+     *
+     * @return array{price: float, change: float, pct: float, as_of: \Illuminate\Support\Carbon|null, stale: bool}|null
+     */
     public function indexQuote(string $symbol = '^JKSE'): ?array
     {
-        $result = $this->yahoo->chart($symbol, '1d', '1d');
-        $meta = $result['meta'] ?? [];
+        // Five days, not one. With range=1d the response holds a single bar and
+        // the only available baseline is meta.chartPreviousClose — "the close
+        // before this chart began", which is not the same thing as "the
+        // previous trading session" whenever the window lands across a weekend
+        // or a holiday, and Yahoo shifts that window when the market is shut.
+        // A week of daily bars means the previous session is in the data
+        // itself, so the comparison no longer depends on interpreting a meta
+        // field whose meaning changes with the request.
+        //
+        // Cached because this runs on every dashboard render: uncached it was a
+        // blocking Yahoo call in the request path of the app's busiest page,
+        // and the one most likely to trip rate limiting.
+        return Cache::remember("index-quote:{$symbol}", now()->addMinutes(2), function () use ($symbol) {
+            $chart = $this->normalizeChart($this->yahoo->chart($symbol, '5d', '1d'));
+            $meta = $chart['meta'];
 
-        if (! isset($meta['regularMarketPrice'], $meta['chartPreviousClose']) || (float) $meta['chartPreviousClose'] === 0.0) {
-            return null;
-        }
+            // Yahoo pads the series with nulls for sessions it has no data for;
+            // normalizeChart turns those into 0.0.
+            $closes = [];
+            foreach ($chart['close'] as $i => $close) {
+                if ($close > 0) {
+                    $closes[] = ['close' => $close, 'timestamp' => $chart['timestamps'][$i] ?? null];
+                }
+            }
 
-        $price = (float) $meta['regularMarketPrice'];
-        $prevClose = (float) $meta['chartPreviousClose'];
+            if (count($closes) < 2) {
+                return null;
+            }
 
-        return [
-            'price' => $price,
-            'change' => $price - $prevClose,
-            'pct' => (($price - $prevClose) / $prevClose) * 100,
-        ];
+            $latest = $closes[count($closes) - 1];
+            $previous = $closes[count($closes) - 2];
+
+            // The live price during a session; the last bar's close once it has
+            // ended. The bar's own close is the fallback so the two can never
+            // disagree about which session is being described.
+            $price = (float) ($meta['regularMarketPrice'] ?? $latest['close']);
+            $prevClose = (float) $previous['close'];
+
+            if ($price <= 0 || $prevClose <= 0) {
+                return null;
+            }
+
+            $asOf = isset($meta['regularMarketTime'])
+                ? Carbon::createFromTimestamp((int) $meta['regularMarketTime'], config('app.timezone'))
+                : ($latest['timestamp'] ? Carbon::createFromTimestamp((int) $latest['timestamp'], config('app.timezone')) : null);
+
+            return [
+                'price' => $price,
+                'change' => $price - $prevClose,
+                'pct' => (($price - $prevClose) / $prevClose) * 100,
+                'as_of' => $asOf,
+                // Outside a session Yahoo keeps serving the last one, so the
+                // figure is real but it is not today's. Saying which day it
+                // belongs to is the difference between "the market is up" and
+                // "the market was up on Friday" — the header presented the
+                // second as the first.
+                'stale' => $asOf !== null && ! $asOf->isSameDay(Carbon::now(config('app.timezone'))),
+            ];
+        });
     }
 
     public function livePrice(string $ticker): float
