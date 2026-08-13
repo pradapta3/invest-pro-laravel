@@ -26,7 +26,7 @@
 
 <div class="grid md:grid-cols-2 gap-6">
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
             <h2 class="font-bold text-sm">Menunggu Aktivasi</h2>
             <a href="{{ route('admin.users.index') }}" class="text-xs font-bold text-primary hover:underline">Lihat semua</a>
         </div>
@@ -46,7 +46,7 @@
     </div>
 
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500">
             <h2 class="font-bold text-sm">Pendaftar Terbaru</h2>
         </div>
         <div class="divide-y divide-slate-100">

@@ -72,7 +72,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs font-bold uppercase text-slate-500">
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
                 <span><x-icon name="calendar-check" class="mr-2 w-4 h-4" />Seasonality (5 Years)</span>
                 <span class="normal-case font-medium">Best: <b class="text-emerald-600">{{ \Carbon\Carbon::create()->month($seasonality['best']['month'])->translatedFormat('M') }}</b> · Worst: <b class="text-red-600">{{ \Carbon\Carbon::create()->month($seasonality['worst']['month'])->translatedFormat('M') }}</b></span>
             </div>
@@ -84,7 +84,7 @@
         @include('stocks.partials.financials')
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500">
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <x-icon name="scale-balanced" class="mr-2 w-4 h-4" :solid="true" />Sector Comparison ({{ $ref->sector }})
             </div>
             <div class="overflow-x-auto">
@@ -126,7 +126,7 @@
 
     <div class="space-y-4">
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs font-bold uppercase text-slate-500">
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
                 <span><x-icon name="brain" class="mr-2 text-primary w-4 h-4" :solid="true" />AI Verdict</span>
                 <span class="{{ $verdictColor }}">{{ $verdict }}</span>
             </div>
@@ -143,7 +143,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="chart-pie" class="mr-2 w-4 h-4" :solid="true" />Market Insight</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500"><x-icon name="chart-pie" class="mr-2 w-4 h-4" :solid="true" />Market Insight</div>
             <div class="p-4 grid grid-cols-2 gap-x-4 text-sm">
                 <div class="space-y-2 border-r border-slate-100 pr-3">
                     <div class="flex justify-between"><span class="text-slate-400">Volume</span><span class="font-bold">{{ number_format($price->volume) }}</span></div>
@@ -163,7 +163,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500">Levels &amp; Safety</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500">Levels &amp; Safety</div>
             <div class="p-3">
                 <table class="w-full text-center text-xs border-collapse">
                     <tr>
@@ -179,7 +179,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="clock-rotate-left" class="mr-2 w-4 h-4" :solid="true" />1-Year Backtest (MA20)</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500"><x-icon name="clock-rotate-left" class="mr-2 w-4 h-4" :solid="true" />1-Year Backtest (MA20)</div>
             <div class="p-4 flex justify-between text-center">
                 <div><div class="text-[10px] text-slate-400">TRADES</div><div class="font-bold">{{ $backtest['trades'] }}</div></div>
                 <div><div class="text-[10px] text-slate-400">WIN RATE</div><div class="font-bold">{{ $backtest['win_rate'] }}%</div></div>
@@ -189,7 +189,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase text-slate-500"><x-icon name="newspaper" class="mr-2 w-4 h-4" :solid="true" />News Sentiment</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500"><x-icon name="newspaper" class="mr-2 w-4 h-4" :solid="true" />News Sentiment</div>
             <div class="p-4 text-center">
                 @php
                     $sentScore = (int) ($price->sentiment_score ?? 0);

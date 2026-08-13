@@ -13,10 +13,14 @@
 # -----------------------------------------------------------------------------
 # Stage 1 — front-end assets
 #
-# The Blade layouts fall back to the Tailwind CDN when
-# public/build/manifest.json is missing (see resources/views/layouts/*.blade.php).
-# That fallback is a development convenience — it pulls a JIT compiler into the
-# browser on every page load — so production must ship a real Vite build.
+# This build is not optional. The layouts used to fall back to the Tailwind CDN
+# when public/build/manifest.json was missing; that fallback is gone, along
+# with every other CDN the interface used to load from, so @vite is the only
+# path to a styled page. If this stage is skipped the app throws rather than
+# quietly rendering an unstyled one, which is the failure you want.
+#
+# The self-hosted typefaces are not built here — they are committed under
+# public/fonts and arrive with the COPY of the source tree.
 # -----------------------------------------------------------------------------
 FROM node:22-alpine AS assets
 

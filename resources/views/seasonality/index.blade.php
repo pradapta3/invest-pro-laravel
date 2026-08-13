@@ -14,7 +14,7 @@
 </form>
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+    <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
         <h2 class="font-bold">{{ $ticker }} <span class="text-sm font-normal text-slate-400">{{ $ref?->nama_perusahaan }}</span></h2>
         @if (!empty($monthlyByYear))
             <span class="text-xs font-bold bg-white border border-slate-200 rounded-full px-3 py-1">

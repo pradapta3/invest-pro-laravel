@@ -69,7 +69,7 @@
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-            <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm">Riwayat Langganan</div>
+            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500">Riwayat Langganan</div>
             <div class="divide-y divide-slate-100">
                 @forelse ($subscriptions as $sub)
                     <div class="px-4 py-3 flex justify-between items-center text-sm">

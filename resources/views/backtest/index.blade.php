@@ -60,7 +60,7 @@
     <div class="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700 font-semibold">{{ $error }}</div>
 @elseif ($walkForwardReport)
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-4">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
             <h2 class="font-bold">Per Periode</h2>
             <span class="text-xs font-bold px-3 py-1 rounded-full {{ $walkForwardReport->isConsistent() ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700' }}">
                 {{ $walkForwardReport->isConsistent() ? 'Konsisten antar periode' : 'TIDAK konsisten — hati-hati' }}

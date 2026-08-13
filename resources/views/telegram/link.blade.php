@@ -9,7 +9,7 @@
 </div>
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden max-w-lg">
-    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm">Status Koneksi</div>
+    <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500">Status Koneksi</div>
     <div class="p-5">
         @if ($user->hasLinkedTelegram())
             <div class="flex items-center gap-3 mb-4">

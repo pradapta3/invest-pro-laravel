@@ -60,7 +60,7 @@
             $shownTrades = $result->trades->sortByDesc(fn ($t) => $t->exitDate->timestamp)->take($tradeLimit);
             $hiddenTrades = $result->tradeCount() - $shownTrades->count();
         @endphp
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm flex flex-wrap items-center justify-between gap-2">
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex flex-wrap items-center justify-between gap-2">
             <span>
                 Semua Trade ({{ number_format($result->tradeCount()) }})
                 @if ($universe > 0)
