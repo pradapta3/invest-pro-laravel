@@ -176,32 +176,61 @@ class MarketDataService
     }
 
     /**
-     * @return array{roe: float, per: float, pbv: float, der: float, market_cap: float}
+     * @return array{roe: float, per: float, eps: float, pbv: float, der: float, market_cap: float}
      */
     public function fundamentals(string $ticker): array
     {
-        $summary = $this->yahoo->quoteSummary($ticker, ['financialData', 'defaultKeyStatistics']);
+        // summaryDetail joins the request because trailingPE, marketCap and
+        // the dividend yield live there, not in defaultKeyStatistics. Asking
+        // only for the other two modules meant trailingPE was never in the
+        // response at all: forwardPE is frequently absent for IDX listings, so
+        // the fallback chain ran out and price-to-earnings was written as a
+        // literal 0.00 for most of the exchange.
+        $summary = $this->yahoo->quoteSummary($ticker, [
+            'financialData',
+            'defaultKeyStatistics',
+            'summaryDetail',
+        ]);
+
         $financialData = $summary['financialData'] ?? [];
         $keyStats = $summary['defaultKeyStatistics'] ?? [];
+        $summaryDetail = $summary['summaryDetail'] ?? [];
 
         $roe = isset($financialData['returnOnEquity']['raw'])
             ? $financialData['returnOnEquity']['raw'] * 100
             : 0.0;
 
-        $per = $keyStats['forwardPE']['raw'] ?? $keyStats['trailingPE']['raw'] ?? 0.0;
-        $pbv = $keyStats['priceToBook']['raw'] ?? 0.0;
+        // Trailing first: it is what the company has actually earned, and
+        // forward is an estimate that not every IDX listing has one of.
+        $per = $summaryDetail['trailingPE']['raw']
+            ?? $keyStats['trailingPE']['raw']
+            ?? $keyStats['forwardPE']['raw']
+            ?? 0.0;
 
-        $derRaw = $financialData['debtToEquity']['raw'] ?? 0.0;
-        // Yahoo sometimes reports debt/equity as a percentage (e.g. 145.2
-        // instead of 1.452) — normalize back to a ratio, matching the
-        // legacy update_fundamentals.php heuristic.
-        $der = $derRaw > 10 ? $derRaw / 100 : $derRaw;
+        $eps = $keyStats['trailingEps']['raw'] ?? $keyStats['forwardEps']['raw'] ?? 0.0;
+        $pbv = $keyStats['priceToBook']['raw'] ?? $summaryDetail['priceToBook']['raw'] ?? 0.0;
 
-        $marketCap = $keyStats['enterpriseValue']['raw'] ?? $financialData['marketCap']['raw'] ?? 0.0;
+        // Yahoo reports debt-to-equity as a percentage — 145.2 meaning 1.452.
+        // The old code only divided when the figure exceeded 10, which is a
+        // guess that gets it wrong in both directions: a genuinely 12x-levered
+        // company was quietly rewritten to 0.12, and a company at 8% was left
+        // reading as 8x. The unit is fixed, so the conversion is too.
+        $der = ($financialData['debtToEquity']['raw'] ?? 0.0) / 100;
+
+        // marketCap, not enterpriseValue. EV is market capitalisation plus net
+        // debt, so for anything leveraged — every bank on this exchange — it
+        // is a multiple of the number this field is supposed to hold, and it
+        // was being written into market_cap and then used to size the heatmap
+        // and rank the sector tables.
+        $marketCap = $summaryDetail['marketCap']['raw']
+            ?? $financialData['marketCap']['raw']
+            ?? $keyStats['marketCap']['raw']
+            ?? 0.0;
 
         return [
             'roe' => (float) $roe,
             'per' => (float) $per,
+            'eps' => (float) $eps,
             'pbv' => (float) $pbv,
             'der' => (float) $der,
             'market_cap' => (float) $marketCap,

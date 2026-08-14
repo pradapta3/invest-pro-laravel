@@ -23,8 +23,8 @@
                         <td class="py-3">{{ number_format($row->close_price) }}</td>
                         <td class="py-3">
                             @if ($type === 'magic')
-                                <span class="text-[11px] font-bold bg-indigo-50 text-primary px-2 py-0.5 rounded mr-1">ROE {{ round($row->stockRef->roe) }}%</span>
-                                <span class="text-[11px] font-bold bg-sky-50 text-sky-600 px-2 py-0.5 rounded">PER {{ round($row->stockRef->pe_ratio, 1) }}x</span>
+                                <span class="text-[11px] font-bold bg-indigo-50 text-primary px-2 py-0.5 rounded mr-1">ROE {{ \App\Support\Format::percent((float) $row->stockRef->roe) }}</span>
+                                <span class="text-[11px] font-bold bg-sky-50 text-sky-600 px-2 py-0.5 rounded">PER {{ \App\Support\Format::ratio((float) $row->stockRef->pe_ratio) }}</span>
                             @elseif ($type === 'bandar')
                                 <span class="text-[11px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Vol {{ round($row->volumeSpikeRatio(), 1) }}x</span>
                             @elseif ($type === 'trend')
@@ -33,8 +33,8 @@
                                 <span class="text-[11px] font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded mr-1">RSI {{ round($row->rsi_14) }}</span>
                                 <span class="text-[11px] font-bold bg-slate-500 text-white px-2 py-0.5 rounded">Near MA20</span>
                             @elseif ($type === 'value')
-                                <span class="text-[11px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded mr-1">PBV {{ round($row->stockRef->pb_ratio, 2) }}x</span>
-                                <span class="text-[11px] font-bold bg-sky-50 text-sky-600 px-2 py-0.5 rounded">DER {{ round($row->stockRef->der, 2) }}x</span>
+                                <span class="text-[11px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded mr-1">PBV {{ \App\Support\Format::ratio((float) $row->stockRef->pb_ratio) }}</span>
+                                <span class="text-[11px] font-bold bg-sky-50 text-sky-600 px-2 py-0.5 rounded">DER {{ \App\Support\Format::ratio((float) $row->stockRef->der) }}</span>
                             @endif
                         </td>
                         <td class="px-4 py-3 text-right">

@@ -9,8 +9,12 @@
     // Rupiah figures run to the tens of trillions, so the table shows them
     // abbreviated and keeps the exact number in a tooltip.
     $money = fn (?float $v) => $v === null ? '-' : ($v < 0 ? '-' : '').'Rp '.\App\Support\Format::compactRupiah(abs($v));
-    $pct = fn (?float $v) => $v === null ? '-' : number_format($v, 1).'%';
-    $ratio = fn (?float $v) => $v === null ? '-' : number_format($v, 2).'x';
+    $pct = fn (?float $v) => \App\Support\Format::percent($v);
+    $ratio = fn (?float $v) => \App\Support\Format::ratio($v);
+
+    // Worked out once so the row label, the cells and the footnote all agree
+    // on which years are flagged.
+    $anomalyYears = $financials->filter(fn ($y) => $metrics->netExceedsOperating($y))->pluck('fiscal_year');
 @endphp
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
@@ -76,12 +80,34 @@
                             <td colspan="{{ $years->count() + 1 }}" class="px-4 py-1.5"><div class="sticky left-4 w-fit text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $section }}</div></td>
                         </tr>
                         @foreach ($rows as [$label, $field, $format])
-                            <tr class="group hover:bg-slate-50">
-                                <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">{{ $label }}</td>
+                            <tr class="group hover:bg-slate-50 {{ $field === 'net_income' && $anomalyYears->isNotEmpty() ? 'bg-amber-50' : '' }}">
+                                <td class="px-4 py-2.5 text-slate-500 sticky left-0 z-10 {{ $field === 'net_income' && $anomalyYears->isNotEmpty() ? 'bg-amber-50' : 'bg-white group-hover:bg-slate-50' }}">
+                                    {{ $label }}
+                                    @if ($field === 'net_income' && $anomalyYears->isNotEmpty())
+                                        <x-icon name="triangle-exclamation" class="inline w-3.5 h-3.5 text-amber-600 align-text-bottom"
+                                                title="Laba bersih melebihi laba usaha pada {{ $anomalyYears->implode(', ') }}" />
+                                    @endif
+                                </td>
                                 @foreach ($years as $y)
-                                    @php $value = $y->{$field}; @endphp
-                                    <td class="px-4 py-2.5 text-right font-num font-semibold {{ $value !== null && $value < 0 ? 'text-red-600' : '' }}"
-                                        @if ($value !== null) title="{{ number_format($value, 2) }}" @endif>
+                                    @php
+                                        $value = $y->{$field};
+                                        // Amber, not red: this is not a loss and not an
+                                        // error. Profit above the operating line comes
+                                        // from outside the business — an asset sale, a
+                                        // revaluation, a tax credit — so the headline
+                                        // overstates how much the operation earns.
+                                        $anomaly = $field === 'net_income' && $metrics->netExceedsOperating($y);
+                                    @endphp
+                                    <td class="px-4 py-2.5 text-right font-num font-semibold {{ match (true) {
+                                        $anomaly => 'text-amber-700',
+                                        $value !== null && $value < 0 => 'text-red-600',
+                                        default => '',
+                                    } }}"
+                                        @if ($anomaly)
+                                            title="Laba bersih {{ number_format($value, 2) }} melebihi laba usaha {{ number_format($y->operating_income, 2) }} — selisihnya bukan dari kegiatan usaha"
+                                        @elseif ($value !== null)
+                                            title="{{ number_format($value, 2) }}"
+                                        @endif>
                                         {{ $format === 'eps' ? ($value === null ? '-' : number_format($value, 2)) : $money($value) }}
                                     </td>
                                 @endforeach
@@ -93,26 +119,52 @@
                         <td colspan="{{ $years->count() + 1 }}" class="px-4 py-1.5"><div class="sticky left-4 w-fit text-[10px] font-bold uppercase tracking-wider text-slate-400">Rasio &amp; Pertumbuhan</div></td>
                     </tr>
 
+                    <tr class="group hover:bg-slate-50">
+                        <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">Margin Kotor</td>
+                        @foreach ($years as $y)
+                            @php $v = $y->grossMargin(); @endphp
+                            <td class="px-4 py-2.5 text-right font-num font-semibold {{ $v !== null && $v < 0 ? 'text-red-600' : '' }}">{{ $pct($v) }}</td>
+                        @endforeach
+                    </tr>
+
+                    {{-- Margins and ROE come from the shared service rather than
+                         from this panel's own arithmetic. The sector table above
+                         used to read stock_refs.roe while this read net income
+                         over equity, so the same emiten showed two different
+                         ROEs a few centimetres apart. --}}
                     @foreach ([
-                        ['Margin Kotor', 'grossMargin'],
                         ['Margin Usaha', 'operatingMargin'],
                         ['Margin Bersih', 'netMargin'],
-                        ['ROE', 'roe'],
-                        ['ROA', 'roa'],
                     ] as [$label, $method])
                         <tr class="group hover:bg-slate-50">
                             <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">{{ $label }}</td>
                             @foreach ($years as $y)
-                                @php $v = $y->{$method}(); @endphp
+                                @php $v = $metrics->{$method}($y); @endphp
                                 <td class="px-4 py-2.5 text-right font-num font-semibold {{ $v !== null && $v < 0 ? 'text-red-600' : '' }}">{{ $pct($v) }}</td>
                             @endforeach
                         </tr>
                     @endforeach
 
                     <tr class="group hover:bg-slate-50">
+                        <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">ROE</td>
+                        @foreach ($years as $y)
+                            @php $v = $metrics->returnOnEquityForYear($y); @endphp
+                            <td class="px-4 py-2.5 text-right font-num font-semibold {{ $v !== null && $v < 0 ? 'text-red-600' : '' }}">{{ $pct($v) }}</td>
+                        @endforeach
+                    </tr>
+
+                    <tr class="group hover:bg-slate-50">
+                        <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">ROA</td>
+                        @foreach ($years as $y)
+                            @php $v = $metrics->returnOnAssets($y); @endphp
+                            <td class="px-4 py-2.5 text-right font-num font-semibold {{ $v !== null && $v < 0 ? 'text-red-600' : '' }}">{{ $pct($v) }}</td>
+                        @endforeach
+                    </tr>
+
+                    <tr class="group hover:bg-slate-50">
                         <td class="px-4 py-2.5 text-slate-500 sticky left-0 bg-white group-hover:bg-slate-50 z-10">DER</td>
                         @foreach ($years as $y)
-                            <td class="px-4 py-2.5 text-right font-num font-semibold">{{ $ratio($y->debtToEquity()) }}</td>
+                            <td class="px-4 py-2.5 text-right font-num font-semibold">{{ $ratio($metrics->debtToEquityForYear($y)) }}</td>
                         @endforeach
                     </tr>
 
@@ -148,6 +200,17 @@
                 </tbody>
             </table>
         </div>
+
+        @if ($anomalyYears->isNotEmpty())
+            <div class="px-4 py-2.5 border-t border-amber-200 bg-amber-50 text-[11px] text-amber-800 flex items-start gap-2">
+                <x-icon name="triangle-exclamation" class="w-4 h-4 shrink-0 mt-px" />
+                <span>
+                    <b>Laba bersih melebihi laba usaha</b> pada {{ $anomalyYears->implode(', ') }}.
+                    Selisihnya datang dari luar kegiatan usaha — penjualan aset, revaluasi, atau keuntungan pajak —
+                    jadi laba yang terlihat lebih besar dari yang benar-benar dihasilkan operasional.
+                </span>
+            </div>
+        @endif
 
         <div class="px-4 py-2.5 border-t border-slate-100 text-[11px] text-slate-400">
             Angka dalam Rupiah, disingkat (M = miliar, T = triliun) — arahkan kursor untuk nilai penuh.

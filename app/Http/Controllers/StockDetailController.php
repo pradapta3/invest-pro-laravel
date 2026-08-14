@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\StockFinancial;
 use App\Models\StockRef;
+use App\Services\FinancialMetricsService;
 use App\Services\MarketData\MarketDataService;
 use App\Services\TechnicalAnalysisService;
 use Illuminate\View\View;
@@ -18,6 +19,7 @@ class StockDetailController extends Controller
     public function __construct(
         private readonly MarketDataService $marketData,
         private readonly TechnicalAnalysisService $ta,
+        private readonly FinancialMetricsService $metrics,
     ) {
     }
 
@@ -55,8 +57,15 @@ class StockDetailController extends Controller
             ->recentFor($ref->ticker, config('screener.financial_statement_years'))
             ->get();
 
+        // The latest filed year, shared by the header ratios, the sector
+        // table and the statements panel — so all three describe the same
+        // period instead of each reaching for whichever figure was nearest.
+        $latest = $financials->first();
+
         return view('stocks.detail', [
             'financials' => $financials,
+            'latest' => $latest,
+            'metrics' => $this->metrics,
             'ref' => $ref,
             'price' => $price,
             'peers' => $peers,

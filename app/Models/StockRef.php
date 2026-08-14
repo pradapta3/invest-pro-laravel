@@ -21,6 +21,7 @@ class StockRef extends Model
         'nama_perusahaan',
         'pe_ratio',
         'pb_ratio',
+        'eps',
         'market_cap',
         'roe',
         'div_yield',
@@ -32,12 +33,18 @@ class StockRef extends Model
     protected function casts(): array
     {
         return [
-            'pe_ratio' => 'decimal:2',
-            'pb_ratio' => 'decimal:2',
+            // float, not decimal:2. The decimal cast returns a *string* and
+            // rounds it to the given places on every read, so a price-to-book
+            // of 0.004 came back as "0.00" — indistinguishable from a company
+            // whose fundamentals were never fetched, and it arrived at the
+            // views as a string that only looked numeric.
+            'pe_ratio' => 'float',
+            'pb_ratio' => 'float',
+            'eps' => 'float',
             'market_cap' => 'integer',
-            'roe' => 'decimal:2',
-            'div_yield' => 'decimal:2',
-            'der' => 'decimal:2',
+            'roe' => 'float',
+            'div_yield' => 'float',
+            'der' => 'float',
             'financials_fetched_at' => 'datetime',
         ];
     }

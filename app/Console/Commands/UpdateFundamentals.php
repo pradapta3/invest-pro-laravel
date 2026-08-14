@@ -38,6 +38,9 @@ class UpdateFundamentals extends Command
                     'roe' => $fundamentals['roe'],
                     'pe_ratio' => $fundamentals['per'],
                     'pb_ratio' => $fundamentals['pbv'],
+                    // Stored rather than derived at render time, so a company
+                    // between annual filings still has one.
+                    'eps' => $fundamentals['eps'] > 0 ? $fundamentals['eps'] : null,
                     'der' => $fundamentals['der'],
                     'market_cap' => $fundamentals['market_cap'],
                 ]);

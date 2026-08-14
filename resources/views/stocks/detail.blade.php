@@ -103,18 +103,35 @@
                         <tr class="bg-indigo-50">
                             <td class="text-left px-3 py-2 font-bold text-primary">{{ $cleanTicker }} <span class="text-[10px] bg-primary text-white rounded px-1.5 py-0.5">YOU</span></td>
                             <td class="py-2">{{ number_format($close) }}</td>
-                            <td class="py-2 font-bold">{{ number_format((float) $ref->pe_ratio, 2) }}x</td>
-                            <td class="py-2">{{ number_format((float) $ref->pb_ratio, 2) }}x</td>
-                            <td class="py-2 {{ (float) $ref->roe > 15 ? 'text-emerald-600 font-bold' : '' }}">{{ number_format((float) $ref->roe, 2) }}%</td>
+                            @php
+                                // Through the service, like every other metric on this
+                                // page. Read straight off the model, this row printed a
+                                // different ROE from the statements panel below it.
+                                $ownPer = $metrics->priceToEarnings($ref, $price);
+                                $ownPbv = $metrics->priceToBook($ref);
+                                $ownRoe = $metrics->returnOnEquity($ref, $latest);
+                            @endphp
+                            <td class="py-2 font-bold">{{ \App\Support\Format::ratio($ownPer) }}</td>
+                            <td class="py-2">{{ \App\Support\Format::ratio($ownPbv) }}</td>
+                            <td class="py-2 {{ $ownRoe['value'] !== null && $ownRoe['value'] > 15 ? 'text-emerald-600 font-bold' : '' }}"
+                                title="Sumber: {{ $ownRoe['source'] }}">{{ \App\Support\Format::percent($ownRoe['value']) }}</td>
                             <td class="py-2">{{ \App\Support\Format::compactRupiah($ref->market_cap) }}</td>
                         </tr>
                         @foreach ($peers as $peer)
                             <tr>
                                 <td class="text-left px-3 py-2 font-bold"><a href="{{ route('stocks.show', $peer->cleanTicker()) }}" class="hover:text-primary">{{ $peer->cleanTicker() }}</a></td>
                                 <td class="py-2">{{ number_format((float) $peer->price->close_price) }}</td>
-                                <td class="py-2 text-slate-400">{{ number_format((float) $peer->pe_ratio, 2) }}x</td>
-                                <td class="py-2 text-slate-400">{{ number_format((float) $peer->pb_ratio, 2) }}x</td>
-                                <td class="py-2 {{ (float) $peer->roe > 15 ? 'text-emerald-600' : 'text-slate-400' }}">{{ number_format((float) $peer->roe, 2) }}%</td>
+                                @php
+                                    // Peers have no statements loaded here, so these fall
+                                    // back to the vendor snapshot inside the service —
+                                    // the same code path, just fewer inputs.
+                                    $peerPer = $metrics->priceToEarnings($peer, $peer->price);
+                                    $peerPbv = $metrics->priceToBook($peer);
+                                    $peerRoe = $metrics->returnOnEquity($peer);
+                                @endphp
+                                <td class="py-2 text-slate-400">{{ \App\Support\Format::ratio($peerPer) }}</td>
+                                <td class="py-2 text-slate-400">{{ \App\Support\Format::ratio($peerPbv) }}</td>
+                                <td class="py-2 {{ $peerRoe['value'] !== null && $peerRoe['value'] > 15 ? 'text-emerald-600' : 'text-slate-400' }}">{{ \App\Support\Format::percent($peerRoe['value']) }}</td>
                                 <td class="py-2 text-slate-400">{{ \App\Support\Format::compactRupiah($peer->market_cap) }}</td>
                             </tr>
                         @endforeach
@@ -148,7 +165,12 @@
                 <div class="space-y-2 border-r border-slate-100 pr-3">
                     <div class="flex justify-between"><span class="text-slate-400">Volume</span><span class="font-bold">{{ number_format($price->volume) }}</span></div>
                     <div class="flex justify-between"><span class="text-slate-400">Cap</span><span class="font-bold">{{ \App\Support\Format::compactRupiah($ref->market_cap) }}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-400">PBV</span><span class="font-bold">{{ number_format((float) $ref->pb_ratio, 2) }}x</span></div>
+                    @php
+                        $insightPbv = $metrics->priceToBook($ref);
+                        $insightEps = $metrics->earningsPerShare($ref, $latest);
+                    @endphp
+                    <div class="flex justify-between"><span class="text-slate-400">PBV</span><span class="font-bold">{{ \App\Support\Format::ratio($insightPbv) }}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">EPS</span><span class="font-bold">{{ $insightEps === null ? '-' : number_format($insightEps, 2) }}</span></div>
                 </div>
                 <div class="space-y-2 pl-1">
                     <div class="flex justify-between"><span class="text-slate-400">Trend</span><span class="font-bold {{ match ($trendUp) {
