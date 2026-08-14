@@ -215,13 +215,19 @@ class MarketDataService
      * yet — the TradingView scan effectively *is* a live, self-updating
      * IDX ticker list, so nothing needs to be imported by hand.
      *
-     * Only carries fields TradingView can report unambiguously in
-     * real time (close/volume/vwap). vol_avg_20 and prev_close are
-     * intentionally NOT sourced from here — see scanIndonesiaExchange()
-     * docblock — UpdateMarketData's daily Yahoo-based EOD refresh owns
-     * both instead.
+     * Carries close, volume, vwap and previous_close. The last of those has to
+     * come from here rather than from the nightly Yahoo refresh: it is the
+     * baseline for the close in the same row, and a baseline lagging its price
+     * by a session is what made the daily change a two-day move.
      *
-     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, value_transaction: float}>
+     * prev_close is null when TradingView omits or zeroes it, and callers are
+     * expected to leave the stored value alone in that case rather than write
+     * a zero — a missing baseline must not become "up by the entire price".
+     *
+     * vol_avg_20 is still not sourced here: the only window this endpoint
+     * offers is 30 days and the app's field is a 20-day average.
+     *
+     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, value_transaction: float, prev_close: ?float}>
      */
     public function realtimeScan(): array
     {
@@ -236,6 +242,9 @@ class MarketDataService
             }
 
             [$symbol, $description, $sector, $close, $volume, $vwap] = $d;
+            // Index 6 rather than destructured, so a response that predates the
+            // previous_close column still yields usable rows.
+            $prevClose = $d[6] ?? null;
 
             $close = (float) $close;
             $volume = (int) $volume;
@@ -248,6 +257,7 @@ class MarketDataService
                 'volume' => $volume,
                 'vwap' => $vwap !== null ? (float) $vwap : $close,
                 'value_transaction' => $close * $volume,
+                'prev_close' => is_numeric($prevClose) && (float) $prevClose > 0 ? (float) $prevClose : null,
             ];
         }
 
