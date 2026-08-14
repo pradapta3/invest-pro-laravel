@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'IDX Invest')</title>
 
+    {{-- Read by resources/js/live-quotes.js. 0 turns polling off. --}}
+    <meta name="live-poll-seconds" content="{{ config('screener.live_poll_seconds') }}">
+
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -51,6 +54,22 @@
                         @endif
                     </span>
                 @endif
+            @endisset
+
+            @isset($quoteFreshness)
+                {{-- How old the figures on this page are. The dashboard was a
+                     snapshot of whenever it was opened and said nothing about
+                     it, so a price from this morning looked exactly like one
+                     from a minute ago. --}}
+                <span data-freshness
+                      data-swap-class="{{ $quoteFreshness['text_class'] }}"
+                      class="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap {{ $quoteFreshness['text_class'] }}"
+                      title="{{ $quoteFreshness['title'] }}">
+                    <span data-freshness-dot
+                          data-swap-class="{{ $quoteFreshness['dot_class'] }}"
+                          class="inline-block w-1.5 h-1.5 rounded-full {{ $quoteFreshness['dot_class'] }}"></span>
+                    <span data-freshness-text>{{ $quoteFreshness['label'] }}</span>
+                </span>
             @endisset
 
             @isset($marketMood)

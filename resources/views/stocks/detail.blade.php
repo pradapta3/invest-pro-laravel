@@ -12,29 +12,26 @@
     $change = $price->dailyChange();
     $changePct = $price->dailyChangePct();
     $verdict = $score->verdict();
-    $verdictColor = match ($verdict) {
-        'STRONG BUY' => 'text-emerald-600',
-        'BUY' => 'text-primary',
-        'NEUTRAL' => 'text-amber-600',
-        default => 'text-red-600',
-    };
+    $verdictColor = \App\Support\Format::verdictTextClass($verdict);
     $flowStat = $price->moneyFlow();
     $trendUp = $price->isAboveMa20();
 @endphp
 
-<div class="bg-white border border-slate-200 rounded-2xl mb-4 p-4 flex flex-wrap items-center justify-between gap-4">
+{{-- data-quote-row is what the live poller looks for: the header carries the
+     price, the day's move, the flow badge and the verdict, and all four are
+     derived from the same figure, so they are refreshed together or not at
+     all. The panels below it are fundamentals and do not move intraday. --}}
+<div class="bg-white border border-slate-200 rounded-2xl mb-4 p-4 flex flex-wrap items-center justify-between gap-4" data-quote-row="{{ $cleanTicker }}">
     <div class="flex items-center gap-3">
         <a href="{{ route('dashboard') }}" class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-slate-200"><x-icon name="arrow-left" class="w-4 h-4" :solid="true" /></a>
         <div>
             <h1 class="text-2xl font-extrabold">{{ $cleanTicker }} <span class="text-base font-normal text-slate-400">{{ $ref->nama_perusahaan }}</span></h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="text-xs bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">{{ $ref->sector ?? '-' }}</span>
-                <span class="text-xs rounded-full px-2 py-0.5 {{ match ($flowStat) {
-                    'AKUM' => 'bg-emerald-100 text-emerald-700',
-                    'DIST' => 'bg-red-100 text-red-700',
-                    default => 'bg-slate-100 text-slate-400',
-                } }}"
-                      title="{{ $flowStat === null ? 'VWAP belum tersedia' : 'Posisi harga terhadap VWAP hari ini' }}">{{ $flowStat ?? 'FLOW -' }}</span>
+                <span data-quote="flow"
+                      data-swap-class="{{ \App\Support\Format::flowBadgeClass($flowStat) }}"
+                      class="text-xs rounded-full px-2 py-0.5 {{ \App\Support\Format::flowBadgeClass($flowStat) }}"
+                      title="{{ $flowStat === null ? 'VWAP belum tersedia' : 'Posisi harga terhadap VWAP hari ini' }}">{{ $flowStat ?? '-' }}</span>
             </div>
         </div>
     </div>
@@ -44,24 +41,15 @@
                 // null is its own case, not "flat": with no previous close and
                 // no open there is nothing to compare against, and `>= 0` would
                 // paint that green.
-                $changeColor = match (true) {
-                    $change === null => 'text-slate-400',
-                    $change > 0 => 'text-emerald-600',
-                    $change < 0 => 'text-red-600',
-                    default => 'text-slate-500',
-                };
+                $changeColor = \App\Support\Format::changeTextClass($changePct);
             @endphp
-            <div class="text-2xl font-extrabold {{ $changeColor }}">Rp {{ number_format($close) }}</div>
-            <div class="text-xs font-bold {{ $changeColor }}">
-                @if ($change === null)
-                    Perubahan harian belum tersedia
-                @else
-                    {{ $change > 0 ? '+' : '' }}{{ number_format($change) }} ({{ number_format($changePct, 2) }}%)
-                @endif
-            </div>
+            <div data-quote="price-line" data-swap-class="{{ $changeColor }}" class="text-2xl font-extrabold {{ $changeColor }}">Rp <span data-quote="price">{{ number_format($close) }}</span></div>
+            <div data-quote="change-line-wrap" data-swap-class="{{ $changeColor }}" class="text-xs font-bold {{ $changeColor }}"><span data-quote="change-line">{{ $change === null
+                ? 'Perubahan harian belum tersedia'
+                : ($change > 0 ? '+' : '').number_format($change).' ('.number_format($changePct, 2).'%)' }}</span></div>
         </div>
-        <div class="w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-lg {{ $verdictColor }} border-4 border-slate-100">{{ $score->total() }}</div>
-        <button onclick="openBuyModal('{{ $cleanTicker }}', {{ $close }})" class="rounded-lg bg-primary text-white font-bold px-4 py-2 hover:bg-indigo-700 transition text-sm">BUY</button>
+        <div data-quote="verdict-circle" data-swap-class="{{ $verdictColor }}" class="w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-lg {{ $verdictColor }} border-4 border-slate-100"><span data-score-value>{{ $score->total() }}</span></div>
+        <button onclick="openBuyModal('{{ $cleanTicker }}')" class="rounded-lg bg-primary text-white font-bold px-4 py-2 hover:bg-indigo-700 transition text-sm">BUY</button>
     </div>
 </div>
 
@@ -233,7 +221,12 @@
     </div>
 </div>
 
-<div x-data="{ open: false }" @open-buy-modal.window="open = true" x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+{{-- The price comes from the event, not from the render, for the same reason
+     the header does: once the page updates itself, a value baked in at render
+     time is the one number on screen that is still quoting this morning. --}}
+<div x-data="{ open: false, price: {{ $close }} }"
+     @open-buy-modal.window="price = $event.detail.price || price; open = true"
+     x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5">
         <div class="flex items-center justify-between mb-3"><h3 class="font-bold">Quick Buy</h3><button @click="open = false"><x-icon name="xmark" class="text-slate-400 w-4 h-4" :solid="true" /></button></div>
         <form method="POST" action="{{ route('portfolio.trade') }}">
@@ -241,7 +234,7 @@
             <input type="hidden" name="action" value="buy">
             <input type="hidden" name="ticker" value="{{ $cleanTicker }}">
             <label class="block text-xs font-bold text-slate-500 mb-1">Price</label>
-            <input type="number" name="price" step="0.01" value="{{ $close }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2 mb-3 font-bold">
+            <input type="number" name="price" step="0.01" value="{{ $close }}" x-bind:value="price" required class="w-full rounded-lg border border-slate-200 px-3 py-2 mb-3 font-bold">
             <label class="block text-xs font-bold text-slate-500 mb-1">Lot</label>
             <input type="number" name="lot" value="1" min="1" required class="w-full rounded-lg border border-slate-200 px-3 py-2 mb-4 font-bold">
             <button type="submit" class="w-full rounded-lg bg-primary text-white font-bold py-2 hover:bg-indigo-700 transition">Execute</button>
@@ -295,9 +288,6 @@ function mountTradingViewChart() {
 }
 
 document.addEventListener('DOMContentLoaded', mountTradingViewChart);
-function openBuyModal(ticker, price) {
-    window.dispatchEvent(new CustomEvent('open-buy-modal', { detail: { ticker, price } }));
-}
 </script>
 @endpush
 @endsection

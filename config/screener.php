@@ -44,6 +44,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trading window and quote freshness
+    |--------------------------------------------------------------------------
+    |
+    | The window idx:update-realtime-quotes runs in, and the age past which a
+    | stored quote stops counting as current. Both are read by
+    | App\Support\MarketClock, which the schedule, the live-quote endpoint and
+    | the freshness badge all share, so the app cannot disagree with itself
+    | about whether the exchange is open.
+    |
+    | quote_stale_after_seconds should be comfortably more than the realtime
+    | cron interval — at the default five minutes, 420 leaves room for one
+    | missed run before anything is called stale. Tighten it if you move the
+    | cron to every minute.
+    |
+    */
+
+    'market_open' => env('IDX_MARKET_OPEN', '09:00'),
+    'market_close' => env('IDX_MARKET_CLOSE', '16:00'),
+    'quote_stale_after_seconds' => (int) env('IDX_QUOTE_STALE_AFTER', 420),
+
+    /*
+    | How often the dashboard asks the server for new figures. The data cannot
+    | be fresher than the cron that writes it, so polling faster than that only
+    | adds load — this is deliberately a fraction of the cron interval, not a
+    | guess at how "live" the page should feel. 0 turns polling off.
+    */
+
+    'live_poll_seconds' => (int) env('IDX_LIVE_POLL_SECONDS', 20),
+
+    /*
+    |--------------------------------------------------------------------------
     | Backtest universe
     |--------------------------------------------------------------------------
     |

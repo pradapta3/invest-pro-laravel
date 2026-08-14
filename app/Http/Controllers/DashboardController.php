@@ -7,6 +7,7 @@ use App\Models\StockRef;
 use App\Services\MarketData\MarketDataService;
 use App\Services\StockScreenerService;
 use App\Services\TechnicalAnalysisService;
+use App\Support\QuoteFreshness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -67,6 +68,9 @@ class DashboardController extends Controller
             'query' => $query,
             'ihsg' => $this->marketData->indexQuote(),
             'marketMood' => $this->marketMood(),
+            // Rendered server-side so the header is right before any
+            // JavaScript runs; the live-quote poller then keeps it moving.
+            'quoteFreshness' => QuoteFreshness::current(),
             'tickerTape' => StockPrice::query()->orderByDesc('volume')->limit(25)->get(),
             'ta' => $this->ta,
             'watchlistedTickers' => DB::table('user_watchlists')->where('user_id', $userId)->pluck('ticker')->all(),

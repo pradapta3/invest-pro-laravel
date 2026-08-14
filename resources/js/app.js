@@ -6,6 +6,8 @@ import DOMPurify from 'dompurify';
 import Swal from 'sweetalert2';
 import { marked } from 'marked';
 
+import { openBuyModal, startLiveQuotes } from './live-quotes';
+
 /*
  * Everything below used to arrive from cdn.jsdelivr.net at runtime, which made
  * the whole interface hostage to a third party the server cannot reach
@@ -20,6 +22,10 @@ import { marked } from 'marked';
  * needs to change for this.
  */
 window.Alpine = Alpine;
+// Called from onclick handlers in the dashboard and detail views, which had
+// their own identical copy of this each — and each baked the price in at
+// render time, so neither survived the page updating itself.
+window.openBuyModal = openBuyModal;
 window.Chart = Chart;
 window.DOMPurify = DOMPurify;
 window.Swal = Swal;
@@ -74,5 +80,9 @@ window.addEventListener('theme-changed', () => {
         Chart.getChart(canvas)?.update();
     });
 });
+
+// Interval comes from the server so it can be tuned per deployment without a
+// rebuild, and so it can be turned off entirely.
+startLiveQuotes(Number(document.querySelector('meta[name="live-poll-seconds"]')?.content ?? 0));
 
 Alpine.start();

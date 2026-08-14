@@ -47,7 +47,7 @@
                         $cleanTicker = str_replace('.JK', '', $stock->ticker);
                         $isWatchlisted = in_array($stock->ticker, $watchlistedTickers, true);
                     @endphp
-                    <tr class="hover:bg-slate-50">
+                    <tr class="hover:bg-slate-50" data-quote-row="{{ $cleanTicker }}">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-3">
                                 <form method="POST" action="{{ route('dashboard.toggle-watchlist', $cleanTicker) }}">
@@ -79,38 +79,34 @@
                                  the board. The day's change is now both the colour and
                                  a number, since a bare price cannot be read as up or
                                  down at all. --}}
-                            <div class="font-bold text-xs mt-1 {{ match (true) {
-                                $changePct === null => 'text-slate-400',
-                                $changePct > 0 => 'text-emerald-600',
-                                $changePct < 0 => 'text-red-600',
-                                default => 'text-slate-500',
-                            } }}">
-                                Rp {{ number_format($stock->close_price) }}
-                                <span class="font-normal">{{ $changePct === null ? '' : '('.($changePct > 0 ? '+' : '').number_format($changePct, 2).'%)' }}</span>
+                            <div data-quote="price-line"
+                                 data-swap-class="{{ \App\Support\Format::changeTextClass($changePct) }}"
+                                 class="font-bold text-xs mt-1 {{ \App\Support\Format::changeTextClass($changePct) }}">
+                                Rp <span data-quote="price">{{ number_format($stock->close_price) }}</span>
+                                <span class="font-normal" data-quote="change">{{ $changePct === null ? '' : '('.($changePct > 0 ? '+' : '').number_format($changePct, 2).'%)' }}</span>
                             </div>
                         </td>
                         <td class="px-2 py-3 text-xs">
-                            <div class="flex justify-between gap-2"><span class="text-slate-400">Entry</span><span class="font-bold text-primary">{{ $plan->entryText() }}</span></div>
-                            <div class="flex justify-between gap-2"><span class="text-slate-400">TP</span><span class="font-bold text-emerald-600">{{ number_format($plan->takeProfit) }} <span class="text-[10px]">+{{ $plan->takeProfitPct() }}%</span></span></div>
-                            <div class="flex justify-between gap-2"><span class="text-slate-400">SL</span><span class="font-bold text-red-600">{{ number_format($plan->stopLoss) }} <span class="text-[10px]">-{{ $plan->stopLossPct() }}%</span></span></div>
+                            <div class="flex justify-between gap-2"><span class="text-slate-400">Entry</span><span class="font-bold text-primary" data-quote="entry">{{ $plan->entryText() }}</span></div>
+                            <div class="flex justify-between gap-2"><span class="text-slate-400">TP</span><span class="font-bold text-emerald-600"><span data-quote="tp">{{ number_format($plan->takeProfit) }}</span> <span class="text-[10px]">+<span data-quote="tp-pct">{{ $plan->takeProfitPct() }}</span>%</span></span></div>
+                            <div class="flex justify-between gap-2"><span class="text-slate-400">SL</span><span class="font-bold text-red-600"><span data-quote="sl">{{ number_format($plan->stopLoss) }}</span> <span class="text-[10px]">-<span data-quote="sl-pct">{{ $plan->stopLossPct() }}</span>%</span></span></div>
                         </td>
                         <td class="px-2 py-3">
-                            <div class="font-bold text-xs">Rp {{ \App\Support\Format::compactRupiah($stock->value_transaction) }}</div>
+                            <div class="font-bold text-xs" data-quote="value">Rp {{ \App\Support\Format::compactRupiah($stock->value_transaction) }}</div>
                             {{-- Neutral grey when VWAP has not been collected yet, rather
                                  than a red DIST badge asserting distribution for the whole
                                  exchange on the strength of a missing number. --}}
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ match ($vwapStat) {
-                                'AKUM' => 'bg-emerald-50 text-emerald-600',
-                                'DIST' => 'bg-red-50 text-red-600',
-                                default => 'bg-slate-100 text-slate-400',
-                            } }}" @if ($vwapStat === null) title="VWAP belum tersedia — jalankan idx:update-realtime-quotes" @endif>{{ $vwapStat ?? '-' }}</span>
+                            <span data-quote="flow"
+                                  data-swap-class="{{ \App\Support\Format::flowBadgeClass($vwapStat) }}"
+                                  class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ \App\Support\Format::flowBadgeClass($vwapStat) }}"
+                                  @if ($vwapStat === null) title="VWAP belum tersedia — jalankan idx:update-realtime-quotes" @endif>{{ $vwapStat ?? '-' }}</span>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex justify-end gap-2">
                                 <button onclick="analyzeStock('{{ $cleanTicker }}')" class="w-8 h-8 rounded-lg bg-indigo-50 text-primary hover:bg-primary hover:text-white transition"><x-icon name="wand-magic-sparkles" class="w-4 h-4" :solid="true" /></button>
                                 <button onclick="sendSignal('{{ $cleanTicker }}')" class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white transition"><x-icon name="paper-plane" class="w-4 h-4" :solid="true" /></button>
                                 <a href="{{ route('stocks.show', $cleanTicker) }}" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-700 hover:text-white transition flex items-center justify-center"><x-icon name="chart-simple" class="w-4 h-4" :solid="true" /></a>
-                                <button onclick="openBuyModal('{{ $cleanTicker }}', {{ (float) $stock->close_price }})" class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition"><x-icon name="plus" class="w-4 h-4" :solid="true" /></button>
+                                <button onclick="openBuyModal('{{ $cleanTicker }}')" class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition"><x-icon name="plus" class="w-4 h-4" :solid="true" /></button>
                             </div>
                         </td>
                     </tr>
@@ -153,11 +149,4 @@
     </div>
 </div>
 
-@push('scripts')
-<script>
-function openBuyModal(ticker, price) {
-    window.dispatchEvent(new CustomEvent('open-buy-modal', { detail: { ticker, price } }));
-}
-</script>
-@endpush
 @endsection

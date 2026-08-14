@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\SubscriptionPlanController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Api\DataUpdateController;
+use App\Http\Controllers\Api\LiveQuoteController;
 use App\Http\Controllers\Api\PortfolioChartController;
 use App\Http\Controllers\Api\StockAnalysisController;
 use App\Http\Controllers\Api\TelegramBroadcastController;
@@ -82,6 +83,14 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
             ->name('api.stocks.analyze')
             ->middleware('throttle:20,1');
         Route::get('/portfolio/chart', PortfolioChartController::class)->name('api.portfolio.chart');
+
+        // Polled by the dashboard so the page stops being a snapshot of
+        // whenever it was opened. Reads its own tables and hits nothing
+        // upstream, so the throttle is generous — it exists to stop a stuck
+        // tab hammering the database, not to ration anything expensive.
+        Route::get('/quotes/live', LiveQuoteController::class)
+            ->name('api.quotes.live')
+            ->middleware('throttle:120,1');
 
         // Sends to the caller's own linked Telegram chat (see
         // TelegramLinkController) — a per-user action, so this belongs

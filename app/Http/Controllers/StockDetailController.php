@@ -7,6 +7,7 @@ use App\Models\StockRef;
 use App\Services\FinancialMetricsService;
 use App\Services\MarketData\MarketDataService;
 use App\Services\TechnicalAnalysisService;
+use App\Support\QuoteFreshness;
 use Illuminate\View\View;
 
 /**
@@ -75,6 +76,10 @@ class StockDetailController extends Controller
             'seasonality' => $seasonalityStats,
             'backtest' => $backtest,
             'ta' => $this->ta,
+            // This page quotes a price too, and had the same problem the
+            // dashboard did: left open it goes on showing the price it was
+            // opened with, with nothing to say how old that is.
+            'quoteFreshness' => QuoteFreshness::current(),
         ]);
     }
 }
