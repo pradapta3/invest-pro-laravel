@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\StockPrice;
 use App\Models\StockRef;
+use App\Support\IdxPrice;
 use App\ValueObjects\ProphetForecast;
 use App\ValueObjects\ScoreBreakdown;
 use App\ValueObjects\TradingPlan;
@@ -541,57 +542,122 @@ class TechnicalAnalysisService
         $stochK = (float) $price->stoch_k;
         $macdHist = (float) $price->macd_hist;
 
-        $trend = 0;
-        if ($close > $ma20) {
-            $trend += $w['trend_above_ma20'];
+        // Nothing is scored from a figure that was never computed. These
+        // columns are NOT NULL DEFAULT 0, so an unguarded comparison reads a
+        // missing value as a favourable one: `close > ma20` is true against a
+        // missing MA20, `stoch_k < 20` against a missing stochastic. Measured
+        // across all 918 emiten on a database where the ingest commands had
+        // not run, that was awarding 19% of every score for data that did not
+        // exist.
+        //
+        // The presence test is hasIndicators(), not `field > 0` on each one.
+        // 0 is a real reading here — %K = 0 is the most oversold a stock can
+        // be, and stochastic() returns 50.0, never 0, when it has nothing to
+        // work with — so a per-field test would discard genuine extremes to
+        // catch defaults. See StockPrice::hasIndicators().
+        $hasIndicators = $price->hasIndicators();
+
+        // Awards are graded, not all-or-nothing. Every weight here is a
+        // multiple of five and every rule used to be a yes/no, so the 0-100
+        // scale could only ever produce 21 values: sorting 900 emiten put them
+        // in 21 buckets, and a stock 0.1% above its MA20 scored exactly the
+        // same as one 12% above. ramp() gives linear credit between the point
+        // where a reading starts to count and the point where it earns the
+        // whole award, clamping outside. The old thresholds survive as the
+        // lower endpoints, so what counts is unchanged — only how finely.
+        $trend = 0.0;
+        if ($hasIndicators && $ma20 > 0) {
+            $trend += $this->ramp($close / $ma20 - 1, 0.0, $w['ma20_premium_full'], $w['trend_above_ma20']);
         }
-        if ($vwap > 0 && $close > $vwap) {
-            $trend += $w['trend_above_vwap'];
+        if ($vwap > 0) {
+            $trend += $this->ramp($close / $vwap - 1, 0.0, $w['vwap_premium_full'], $w['trend_above_vwap']);
         }
 
-        $momentum = 0;
-        if ($macdHist > 0) {
-            $momentum += $w['momentum_macd_positive'];
-        }
-        if ($rsi >= $w['rsi_sweet_spot_min'] && $rsi <= $w['rsi_sweet_spot_max']) {
-            $momentum += $w['momentum_rsi_sweet_spot'];
-        } elseif ($rsi > 70 || $rsi < 30) {
-            $momentum += $w['momentum_rsi_extreme'];
-        }
-        if ($stochK < 20) {
-            $momentum += $w['momentum_stoch_oversold'];
+        $momentum = 0.0;
+        if ($hasIndicators) {
+            if ($close > 0) {
+                $momentum += $this->ramp($macdHist / $close, 0.0, $w['macd_hist_ratio_full'], $w['momentum_macd_positive']);
+            }
+
+            if ($rsi <= $w['rsi_sweet_spot_max']) {
+                // Full credit inside the sweet spot, fading in as the stock
+                // approaches it from below. Above the sweet spot the award is
+                // zero: overbought is the risk this score exists to flag, not
+                // reward — it used to pay the same credit as oversold, so RSI
+                // 85 outranked RSI 45 on a scale whose top band reads STRONG
+                // BUY.
+                $momentum += $this->ramp($rsi, $w['rsi_approach_from'], $w['rsi_sweet_spot_min'], $w['momentum_rsi_sweet_spot']);
+            }
+
+            // Oversold is its own, smaller award, and only below the line.
+            if ($rsi < $w['rsi_oversold_max']) {
+                $momentum += $this->ramp($rsi, $w['rsi_oversold_max'], 0.0, $w['momentum_rsi_oversold']);
+            }
+
+            $momentum += $this->ramp($stochK, $w['stoch_oversold_max'], $w['stoch_full_at'], $w['momentum_stoch_oversold']);
         }
 
-        $flow = 0;
-        $volAvg20 = (int) $price->vol_avg_20;
-        if ($volAvg20 > 0) {
-            $ratio = (int) $price->volume / $volAvg20;
-            if ($ratio > $w['volume_above_avg_ratio']) {
-                $flow += $w['flow_volume_above_avg'];
-            }
-            if ($ratio > $w['volume_spike_ratio']) {
-                $flow += $w['flow_volume_spike'];
-            }
+        $flow = 0.0;
+        if ((int) $price->vol_avg_20 > 0) {
+            // One graded award replacing the old 1.2x/2.0x pair, worth their
+            // sum, so the flow maximum is unchanged.
+            $flow += $this->ramp(
+                $price->volumeSpikeRatio(),
+                $w['volume_above_avg_ratio'],
+                $w['volume_ratio_full'],
+                $w['flow_volume'],
+            );
         }
         if ($price->is_breakout) {
+            // Genuinely binary: a breakout either happened today or it did not.
             $flow += $w['flow_breakout'];
         }
 
-        $fundamental = 0;
-        $roe = (float) ($ref?->roe ?? 0);
-        $der = (float) ($ref?->der ?? 10);
-        $per = (float) ($ref?->pe_ratio ?? 0);
-        if ($roe > $w['fundamental_roe_min']) {
-            $fundamental += $w['fundamental_roe'];
-        }
-        if ($der < $w['fundamental_der_max']) {
-            $fundamental += $w['fundamental_der'];
-        }
-        if ($per > 0 && $per < $w['fundamental_per_max']) {
-            $fundamental += $w['fundamental_per'];
+        // Same presence problem, same shape of answer: hasFundamentals() rather
+        // than a per-field test, because der = 0 is the *best* gearing there
+        // is — no borrowings — and scoring it as missing would penalise
+        // exactly the strongest balance sheets.
+        $fundamental = 0.0;
+        if ($ref !== null && $ref->hasFundamentals()) {
+            $roe = (float) $ref->roe;
+            $der = (float) $ref->der;
+            $per = (float) $ref->pe_ratio;
+
+            $fundamental += $this->ramp($roe, $w['fundamental_roe_min'], $w['fundamental_roe_full'], $w['fundamental_roe']);
+
+            // Descending ramp: less gearing is better, all the way down to
+            // zero. Not below it — a negative DER is negative equity,
+            // liabilities past assets, the worst reading there is, and the
+            // old `$der < 1.5` scored it as the best.
+            if ($der >= 0) {
+                $fundamental += $this->ramp($der, $w['fundamental_der_max'], $w['fundamental_der_full'], $w['fundamental_der']);
+            }
+
+            if ($per > 0) {
+                $fundamental += $this->ramp($per, $w['fundamental_per_max'], $w['fundamental_per_full'], $w['fundamental_per']);
+            }
         }
 
         return new ScoreBreakdown($trend, $momentum, $flow, $fundamental);
+    }
+
+    /**
+     * Linear credit for a reading between two endpoints, clamped outside them.
+     *
+     * $zeroAt is where the award starts counting and $fullAt where it is fully
+     * earned. $fullAt may be the lower of the two, which is how the
+     * "less is better" rules are written — gearing, valuation, an oversold
+     * stochastic — so there is one helper rather than one per direction.
+     */
+    private function ramp(float $value, float $zeroAt, float $fullAt, float $points): float
+    {
+        if ($fullAt === $zeroAt) {
+            return $value >= $fullAt ? $points : 0.0;
+        }
+
+        $progress = ($value - $zeroAt) / ($fullAt - $zeroAt);
+
+        return max(0.0, min(1.0, $progress)) * $points;
     }
 
     /**
@@ -626,19 +692,62 @@ class TechnicalAnalysisService
 
         // "swing": pivot-point based plan.
         $pivots = $this->pivotPoints($high, $low, $close);
-        $buyPrice = $close > $ma20 ? $close : $pivots['s1'];
+
+        // isAboveMa20(), not `close > ma20`: ma20 defaults to 0, so this read
+        // as "in an uptrend, buy at market" for every row whose indicators had
+        // never been computed, when the intent for an unknown trend is the
+        // conservative S1 limit.
+        $buyPrice = $price->isAboveMa20() === true ? $close : $pivots['s1'];
         $entryLow = $buyPrice * (1 - $cfg['entry_band_pct']);
         $entryHigh = $buyPrice * (1 + $cfg['entry_band_pct']);
         $stopLoss = $pivots['s1'] * (1 - $cfg['stop_loss_buffer_pct']);
 
-        return $this->finalizePlan($buyPrice, $entryLow, $entryHigh, $pivots['r1'], $stopLoss);
+        // Entering at market puts the stop a whole pivot-range plus a buffer
+        // away while R1 sits only a fraction of that above — measured over 360
+        // synthetic sessions, every single plan came out below 1:1, median
+        // 1:0.3, which needs a 77% win rate merely to break even. R2 is the
+        // next pivot target up and the standard answer when the first is too
+        // close to the entry to be worth the risk. Escalating only when R1
+        // fails the floor leaves the tighter target in place wherever it was
+        // already good enough.
+        $takeProfit = $pivots['r1'];
+        $floor = (float) ($cfg['min_risk_reward'] ?? 0);
+
+        if ($floor > 0 && $buyPrice > $stopLoss) {
+            $risk = $buyPrice - $stopLoss;
+
+            if (($takeProfit - $buyPrice) / $risk < $floor) {
+                $takeProfit = max($takeProfit, $pivots['r2']);
+            }
+        }
+
+        return $this->finalizePlan($buyPrice, $entryLow, $entryHigh, $takeProfit, $stopLoss);
     }
 
+    /**
+     * Rounds every level to a price the exchange will accept and derives the
+     * risk/reward from the rounded figures, so the ratio describes the trade
+     * actually on offer rather than one a fraction of a tick away from it.
+     *
+     * The entry band rounds outward — low down, high up — so rounding can only
+     * widen the window a fill can land in. The stop rounds down, away from the
+     * entry, so it is never pulled tighter than intended by the rounding.
+     */
     private function finalizePlan(float $buyPrice, float $entryLow, float $entryHigh, float $takeProfit, float $stopLoss, ?float $takeProfit2 = null): TradingPlan
     {
+        $buyPrice = IdxPrice::roundToTick($buyPrice);
+        $entryLow = IdxPrice::floorToTick($entryLow);
+        $entryHigh = IdxPrice::ceilToTick($entryHigh);
+        $takeProfit = IdxPrice::roundToTick($takeProfit);
+        $stopLoss = IdxPrice::floorToTick($stopLoss);
+        $takeProfit2 = $takeProfit2 === null ? null : IdxPrice::roundToTick($takeProfit2);
+
         $reward = $takeProfit - $buyPrice;
         $risk = $buyPrice - $stopLoss;
-        $rrr = $risk > 0 ? round($reward / $risk, 1) : 0.0;
+
+        // null, not 0.0: "no computable ratio" is not "a ratio of zero", and
+        // the views print it straight into "1 : x".
+        $rrr = $risk > 0 ? round($reward / $risk, 1) : null;
 
         return new TradingPlan($entryLow, $entryHigh, $takeProfit, $stopLoss, $rrr, $takeProfit2);
     }

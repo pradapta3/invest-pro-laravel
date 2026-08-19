@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\SubscriptionPlanController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Api\DataUpdateController;
+use App\Http\Controllers\Api\LiveQuoteController;
 use App\Http\Controllers\Api\PortfolioChartController;
 use App\Http\Controllers\Api\StockAnalysisController;
 use App\Http\Controllers\Api\TelegramBroadcastController;
@@ -51,17 +52,17 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
     Route::post('/portfolio/trade', [PortfolioController::class, 'trade'])->name('portfolio.trade');
     Route::post('/portfolio/deposit', [PortfolioController::class, 'deposit'])->name('portfolio.deposit');
 
-    Route::get('/scanner/quant', [ScannerController::class, 'quant'])->name('scanner.quant');
-    Route::get('/scanner/titan', [TitanScanController::class, 'index'])->name('scanner.titan');
+    Route::get('/scanner/quant', [ScannerController::class, 'quant'])->middleware('plan:scanner')->name('scanner.quant');
+    Route::get('/scanner/titan', [TitanScanController::class, 'index'])->middleware('plan:scanner')->name('scanner.titan');
 
-    Route::get('/heatmap', [HeatmapController::class, 'index'])->name('heatmap.index');
-    Route::get('/seasonality', [SeasonalityController::class, 'show'])->name('seasonality.show');
-    Route::get('/similarity', [SimilarityController::class, 'show'])->name('similarity.show');
+    Route::get('/heatmap', [HeatmapController::class, 'index'])->middleware('plan:heatmap')->name('heatmap.index');
+    Route::get('/seasonality', [SeasonalityController::class, 'show'])->middleware('plan:pattern')->name('seasonality.show');
+    Route::get('/similarity', [SimilarityController::class, 'show'])->middleware('plan:pattern')->name('similarity.show');
     Route::get('/news', [NewsController::class, 'index'])->name('news.index');
-    Route::get('/tools', [ToolsController::class, 'index'])->name('tools.index');
-    Route::get('/backtest', [BacktestController::class, 'index'])->name('backtest.index');
+    Route::get('/tools', [ToolsController::class, 'index'])->middleware('plan:tools')->name('tools.index');
+    Route::get('/backtest', [BacktestController::class, 'index'])->middleware('plan:backtest')->name('backtest.index');
 
-    Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->name('telegram.link');
+    Route::get('/telegram/link', [TelegramLinkController::class, 'show'])->middleware('plan:telegram')->name('telegram.link');
     Route::post('/telegram/link', [TelegramLinkController::class, 'generate'])->name('telegram.link.generate');
     Route::delete('/telegram/link', [TelegramLinkController::class, 'destroy'])->name('telegram.link.destroy');
 
@@ -82,6 +83,14 @@ Route::middleware(['auth', 'subscription.active'])->group(function () {
             ->name('api.stocks.analyze')
             ->middleware('throttle:20,1');
         Route::get('/portfolio/chart', PortfolioChartController::class)->name('api.portfolio.chart');
+
+        // Polled by the dashboard so the page stops being a snapshot of
+        // whenever it was opened. Reads its own tables and hits nothing
+        // upstream, so the throttle is generous — it exists to stop a stuck
+        // tab hammering the database, not to ration anything expensive.
+        Route::get('/quotes/live', LiveQuoteController::class)
+            ->name('api.quotes.live')
+            ->middleware('throttle:120,1');
 
         // Sends to the caller's own linked Telegram chat (see
         // TelegramLinkController) — a per-user action, so this belongs

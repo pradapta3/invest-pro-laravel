@@ -21,22 +21,31 @@ class StockRef extends Model
         'nama_perusahaan',
         'pe_ratio',
         'pb_ratio',
+        'eps',
         'market_cap',
         'roe',
         'div_yield',
         'der',
         'sector',
+        'financials_fetched_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'pe_ratio' => 'decimal:2',
-            'pb_ratio' => 'decimal:2',
+            // float, not decimal:2. The decimal cast returns a *string* and
+            // rounds it to the given places on every read, so a price-to-book
+            // of 0.004 came back as "0.00" — indistinguishable from a company
+            // whose fundamentals were never fetched, and it arrived at the
+            // views as a string that only looked numeric.
+            'pe_ratio' => 'float',
+            'pb_ratio' => 'float',
+            'eps' => 'float',
             'market_cap' => 'integer',
-            'roe' => 'decimal:2',
-            'div_yield' => 'decimal:2',
-            'der' => 'decimal:2',
+            'roe' => 'float',
+            'div_yield' => 'float',
+            'der' => 'float',
+            'financials_fetched_at' => 'datetime',
         ];
     }
 
@@ -48,6 +57,26 @@ class StockRef extends Model
     public function portfolioPositions(): HasMany
     {
         return $this->hasMany(UserPortfolio::class, 'ticker', 'ticker');
+    }
+
+    /**
+     * Whether UpdateFundamentals has ever landed figures on this row.
+     *
+     * roe, pe_ratio and der are NOT NULL DEFAULT 0, so an untouched row reads
+     * as a company with no earnings and no debt. der = 0 in particular is a
+     * genuine and desirable value — it means no borrowings — so it cannot be
+     * used as its own presence test without penalising exactly the companies
+     * with the strongest balance sheets.
+     *
+     * This is the same test UpdateFundamentals applies before it writes at
+     * all (its $hasData), so the two agree by construction: a row it declined
+     * to write reports false here.
+     */
+    public function hasFundamentals(): bool
+    {
+        return (float) $this->roe != 0.0
+            || (float) $this->pe_ratio != 0.0
+            || (int) $this->market_cap != 0;
     }
 
     /**

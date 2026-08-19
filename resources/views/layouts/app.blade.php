@@ -5,125 +5,181 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'IDX Invest')</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {{-- Read by resources/js/live-quotes.js. 0 turns polling off. --}}
+    <meta name="live-poll-seconds" content="{{ config('screener.live_poll_seconds') }}">
 
-    @if (file_exists(public_path('build/manifest.json')))
-        {{-- Compiled by `npm run build` --}}
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        {{-- Node.js isn't installed on this machine yet, so the Vite build
-             hasn't been run. This CDN fallback keeps the app usable in the
-             meantime; run `npm install && npm run build` and this switches
-             to the compiled assets automatically. --}}
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        colors: { primary: '#4f46e5' },
-                        fontFamily: {
-                            sans: ['Plus Jakarta Sans', 'sans-serif'],
-                            mono: ['Roboto Mono', 'monospace'],
-                        },
-                    },
-                },
-            };
-        </script>
-        <style>.font-num { font-family: 'Roboto Mono', monospace; }</style>
-    @endif
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    @include('partials.theme')
+
     <style>[x-cloak] { display: none !important; }</style>
+
 
     @stack('head')
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans pb-16">
 
 <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-4">
-            <a href="{{ route('dashboard') }}" class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div class="flex items-center gap-3 md:gap-4 min-w-0">
+            <a href="{{ route('dashboard') }}" class="text-lg md:text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent whitespace-nowrap">
                 DOMPET IJO
             </a>
 
             @isset($ihsg)
                 @if($ihsg)
-                    <span class="hidden md:inline-flex items-center text-sm font-bold gap-1">
+                    {{-- The index level is the one number worth keeping on a phone, so
+                         it stays visible; the mood badge waits for a wider screen. --}}
+                    @php
+                        // `>= 0` painted an unchanged index green, and painted a
+                        // stale figure — the last session Yahoo still serves once
+                        // the market is shut — as though it were today's move.
+                        $ihsgColor = match (true) {
+                            $ihsg['stale'] => 'text-slate-400',
+                            $ihsg['change'] > 0 => 'text-emerald-600',
+                            $ihsg['change'] < 0 => 'text-red-600',
+                            default => 'text-slate-500',
+                        };
+                    @endphp
+                    <span class="inline-flex items-center text-xs md:text-sm font-bold gap-1 whitespace-nowrap"
+                          title="{{ $ihsg['as_of']?->translatedFormat('D, d M Y H:i') ?? 'Waktu tidak diketahui' }}{{ $ihsg['stale'] ? ' — sesi terakhir, bukan hari ini' : '' }}">
                         <span class="text-slate-400">IHSG</span>
-                        <span class="{{ $ihsg['change'] >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
-                            {{ number_format($ihsg['price']) }}
-                            ({{ $ihsg['change'] >= 0 ? '+' : '' }}{{ round($ihsg['pct'], 2) }}%)
+                        <span class="{{ $ihsgColor }}">
+                            {{ number_format($ihsg['price'], 2) }}
+                            ({{ $ihsg['change'] > 0 ? '+' : '' }}{{ round($ihsg['pct'], 2) }}%)
                         </span>
+                        @if ($ihsg['stale'])
+                            <span class="font-normal text-[10px] text-slate-400">{{ $ihsg['as_of']?->translatedFormat('d M') }}</span>
+                        @endif
                     </span>
                 @endif
             @endisset
 
+            @isset($quoteFreshness)
+                {{-- How old the figures on this page are. The dashboard was a
+                     snapshot of whenever it was opened and said nothing about
+                     it, so a price from this morning looked exactly like one
+                     from a minute ago. --}}
+                <span data-freshness
+                      data-swap-class="{{ $quoteFreshness['text_class'] }}"
+                      class="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap {{ $quoteFreshness['text_class'] }}"
+                      title="{{ $quoteFreshness['title'] }}">
+                    <span data-freshness-dot
+                          data-swap-class="{{ $quoteFreshness['dot_class'] }}"
+                          class="inline-block w-1.5 h-1.5 rounded-full {{ $quoteFreshness['dot_class'] }}"></span>
+                    <span data-freshness-text>{{ $quoteFreshness['label'] }}</span>
+                </span>
+            @endisset
+
             @isset($marketMood)
-                <span class="hidden md:inline-flex items-center text-sm font-bold gap-1" style="color: {{ $marketMood['color'] }}">
-                    <i class="fa-solid {{ $marketMood['icon'] }}"></i>
+                {{-- Says what it measures. This is breadth — the share of the
+                     exchange trading above its own 20-day average — not the
+                     index's move today, and the two routinely disagree: IHSG
+                     can close down while most stocks are still above their
+                     20-day line. Labelled only "Greed" it read as "the market
+                     is up", which is not what it says. --}}
+                <span class="hidden sm:inline-flex items-center text-sm font-bold gap-1 whitespace-nowrap"
+                      style="color: {{ $marketMood['color'] }}"
+                      title="{{ $marketMood['pct'] }}% emiten ditutup di atas MA20-nya. Ini lebar pasar, bukan pergerakan IHSG hari ini.">
+                    <x-icon :name="$marketMood['icon']" class="w-4 h-4" :solid="true" />
                     {{ $marketMood['pct'] }}% {{ $marketMood['label'] }}
+                    <span class="font-normal text-slate-400 text-xs">di atas MA20</span>
                 </span>
             @endisset
         </div>
 
-        <nav class="flex items-center gap-2 text-sm font-semibold">
+        {{-- Ten action buttons in one non-wrapping row were what forced the whole
+             page wider than a phone, so the browser zoomed the entire layout out
+             to fit. Below md they collapse behind this toggle instead.
+
+             Driven by the inline script below rather than Alpine on purpose.
+             Alpine arrives from a third-party CDN, and when that is blocked or
+             slow this button is the only way to reach portfolio, alerts, admin
+             and — worst of all — logout on a phone. The rest of the header's
+             dropdowns still use Alpine; losing those only costs a menu. --}}
+        {{-- Outside the collapsing nav below md, so the fix for a screen that is
+             too bright does not itself require finding it behind a menu. From
+             md up the nav is always open and the copy inside it is used. --}}
+        <x-theme-toggle class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition" />
+
+        <button type="button" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu"
+                class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+            {{-- Both states in the markup, one hidden — the icons are SVG now,
+                 so there is no class to swap the way the Font Awesome glyph
+                 allowed. --}}
+            <x-icon name="bars" class="w-4 h-4" data-nav-icon="closed" />
+            <x-icon name="xmark" class="w-4 h-4 hidden" data-nav-icon="open" />
+        </button>
+
+        {{-- `hidden md:flex` is the no-JavaScript baseline: collapsed on a phone,
+             always open from md up. The toggle only ever adds !flex to reveal it. --}}
+        <nav id="main-nav" class="hidden md:flex w-full md:w-auto flex-wrap items-center gap-2 text-sm font-semibold">
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="inline-flex items-center gap-2 rounded-lg bg-primary text-white px-3 py-2 hover:bg-indigo-700 transition">
-                    <i class="fa-solid fa-robot"></i> Analisa
+                    <x-icon name="robot" class="w-4 h-4" :solid="true" /> Analisa
                 </button>
                 <div x-show="open" x-cloak class="absolute right-0 mt-2 w-48 rounded-xl bg-white shadow-lg border border-slate-200 py-2 z-40">
-                    <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i>Titan Sniper</a>
-                    <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-layer-group text-primary mr-2"></i>Quant Alpha</a>
-                    <hr class="my-1 border-slate-100">
-                    <a href="{{ route('seasonality.show') }}" class="block px-4 py-2 hover:bg-slate-50">Seasonality</a>
-                    <a href="{{ route('similarity.show') }}" class="block px-4 py-2 hover:bg-slate-50">Ghost Pattern</a>
-                    <hr class="my-1 border-slate-100">
-                    <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><i class="fa-solid fa-flask mr-2 text-emerald-600"></i>Backtest</a>
+                    {{-- Each group is hidden unless the subscriber's plan covers it,
+                         so the menu never offers a link that answers 403. The
+                         separators live inside the groups for the same reason. --}}
+                    @if (auth()->user()?->planAllows('scanner'))
+                        <a href="{{ route('scanner.titan') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="bolt" class="text-amber-500 mr-2 w-4 h-4" :solid="true" />Titan Sniper</a>
+                        <a href="{{ route('scanner.quant') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="layer-group" class="text-primary mr-2 w-4 h-4" :solid="true" />Quant Alpha</a>
+                    @endif
+                    @if (auth()->user()?->planAllows('pattern'))
+                        @if (auth()->user()?->planAllows('scanner'))<hr class="my-1 border-slate-100">@endif
+                        <a href="{{ route('seasonality.show') }}" class="block px-4 py-2 hover:bg-slate-50">Seasonality</a>
+                        <a href="{{ route('similarity.show') }}" class="block px-4 py-2 hover:bg-slate-50">Ghost Pattern</a>
+                    @endif
+                    @if (auth()->user()?->planAllows('backtest'))
+                        @if (auth()->user()?->planAllows('scanner') || auth()->user()?->planAllows('pattern'))<hr class="my-1 border-slate-100">@endif
+                        <a href="{{ route('backtest.index') }}" class="block px-4 py-2 hover:bg-slate-50"><x-icon name="flask" class="mr-2 text-emerald-600 w-4 h-4" :solid="true" />Backtest</a>
+                    @endif
                 </div>
             </div>
 
             @if (auth()->user()?->is_admin)
                 <button type="button" onclick="broadcastDigest(this)" title="Broadcast Top Picks"
                         class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-sky-500 text-white hover:bg-sky-600 transition">
-                    <i class="fa-brands fa-telegram"></i>
+                    <x-icon name="telegram" class="w-4 h-4" :solid="true" />
                 </button>
             @endif
 
-            <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
+            @if (auth()->user()?->planAllows('telegram'))
+                <a href="{{ route('telegram.link') }}" title="{{ auth()->user()?->hasLinkedTelegram() ? 'Telegram Terhubung' : 'Hubungkan Telegram' }}"
                class="inline-flex items-center justify-center w-10 h-10 rounded-lg border transition {{ auth()->user()?->hasLinkedTelegram() ? 'bg-white border-slate-200 text-sky-500 hover:bg-slate-50' : 'bg-white border-amber-300 text-amber-500 hover:bg-slate-50' }}">
-                <i class="fa-brands fa-telegram"></i>
+                <x-icon name="telegram" class="w-4 h-4" :solid="true" />
             </a>
+            @endif
 
             <a href="{{ route('alerts.index') }}" title="Price Alert" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-bell"></i>
+                <x-icon name="bell" class="w-4 h-4" :solid="true" />
             </a>
 
+            @if (auth()->user()?->planAllows('heatmap'))
             <a href="{{ route('heatmap.index') }}" title="Market Map" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-amber-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-map"></i>
+                <x-icon name="map" class="w-4 h-4" :solid="true" />
             </a>
+            @endif
             <a href="{{ route('news.index') }}" title="News" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-red-500 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-newspaper"></i>
+                <x-icon name="newspaper" class="w-4 h-4" :solid="true" />
             </a>
+            @if (auth()->user()?->planAllows('tools'))
             <a href="{{ route('tools.index') }}" title="Tools" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-primary hover:bg-slate-50 transition">
-                <i class="fa-solid fa-calculator"></i>
+                <x-icon name="calculator" class="w-4 h-4" :solid="true" />
             </a>
+            @endif
             <a href="{{ route('portfolio.index') }}" class="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-200 text-emerald-600 px-3 py-2 hover:bg-slate-50 transition">
-                <i class="fa-solid fa-wallet"></i> Porto
+                <x-icon name="wallet" class="w-4 h-4" :solid="true" /> Porto
             </a>
 
             @if (auth()->user()?->is_admin)
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open" @click.outside="open = false" title="Data Updater"
                             class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
-                        <i class="fa-solid fa-database"></i>
+                        <x-icon name="database" class="w-4 h-4" :solid="true" />
                     </button>
                     <div x-show="open" x-cloak class="absolute right-0 mt-2 w-56 rounded-xl bg-white shadow-lg border border-slate-200 py-2 z-40">
                         <div class="px-4 py-1 text-[10px] font-bold uppercase text-slate-400">Data Updater</div>
@@ -136,19 +192,45 @@
                     </div>
                 </div>
                 <a href="{{ route('admin.dashboard') }}" title="Admin" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition">
-                    <i class="fa-solid fa-user-shield"></i>
+                    <x-icon name="user-shield" class="w-4 h-4" :solid="true" />
                 </a>
             @endif
+
+            {{-- md and up only: below that the copy beside the hamburger, which
+                 is outside this collapsing nav, is the one on screen. --}}
+            <x-theme-toggle class="hidden md:inline-flex items-center justify-center w-10 h-10 rounded-lg transition bg-white border border-slate-200 text-slate-500 hover:bg-slate-50" />
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" title="Keluar" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
-                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <x-icon name="right-from-bracket" class="w-4 h-4" :solid="true" />
                 </button>
             </form>
         </nav>
     </div>
 </header>
+
+{{-- Inline and un-deferred so the mobile menu works from first paint, with no
+     dependency on any external script. --}}
+<script>
+(function () {
+    var btn = document.getElementById('nav-toggle');
+    var nav = document.getElementById('main-nav');
+    var icons = btn.querySelectorAll('[data-nav-icon]');
+    if (!btn || !nav) return;
+
+    btn.addEventListener('click', function () {
+        // Tailwind's !flex beats the `hidden` that keeps the row collapsed below
+        // md; above md the md:flex in the class list already wins, so toggling
+        // this is a no-op there.
+        var open = nav.classList.toggle('!flex');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        icons.forEach(function (icon) {
+            icon.classList.toggle('hidden', (icon.dataset.navIcon === 'open') !== open);
+        });
+    });
+})();
+</script>
 
 <main class="max-w-7xl mx-auto px-4 py-6">
     @if (session('status'))
@@ -175,13 +257,23 @@
     <div class="whitespace-nowrap animate-[ticker_45s_linear_infinite] pl-full">
         @foreach ($tickerTape as $t)
             @php
-                $chg = (float) $t->close_price - (float) $t->open_price;
-                $pct = (float) $t->open_price > 0 ? ($chg / (float) $t->open_price) * 100 : 0;
+                // Against the previous close. This used to be close - open,
+                // i.e. the intraday drift only, so a stock that gapped down and
+                // then recovered a little showed an up arrow on a day it was
+                // down.
+                $chg = $t->dailyChange();
+                $pct = $t->dailyChangePct();
             @endphp
             <span class="inline-block px-4 text-xs font-mono font-semibold text-white">
                 {{ str_replace('.JK', '', $t->ticker) }}
-                <span class="{{ $chg >= 0 ? 'text-emerald-400' : 'text-red-400' }}">
-                    {{ $chg >= 0 ? '▲' : '▼' }} {{ number_format($t->close_price) }} ({{ round($pct, 2) }}%)
+                <span class="{{ match (true) {
+                    $chg === null => 'text-slate-400',
+                    $chg > 0 => 'text-emerald-400',
+                    $chg < 0 => 'text-red-400',
+                    default => 'text-slate-300',
+                } }}">
+                    {{ match (true) { $chg === null => '·', $chg > 0 => '▲', $chg < 0 => '▼', default => '=' } }}
+                    {{ number_format($t->close_price) }}{{ $pct === null ? '' : ' ('.round($pct, 2).'%)' }}
                 </span>
             </span>
         @endforeach

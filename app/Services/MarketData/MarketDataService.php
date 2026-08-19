@@ -2,6 +2,9 @@
 
 namespace App\Services\MarketData;
 
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+
 /**
  * Single entry point for all external market-data access. Controllers,
  * console commands and other services should depend on this, never on
@@ -97,23 +100,72 @@ class MarketDataService
     /**
      * @return array{price: float, change: float, pct: float}|null
      */
+    /**
+     * The IHSG level and its move against the previous session's close.
+     *
+     * @return array{price: float, change: float, pct: float, as_of: \Illuminate\Support\Carbon|null, stale: bool}|null
+     */
     public function indexQuote(string $symbol = '^JKSE'): ?array
     {
-        $result = $this->yahoo->chart($symbol, '1d', '1d');
-        $meta = $result['meta'] ?? [];
+        // Five days, not one. With range=1d the response holds a single bar and
+        // the only available baseline is meta.chartPreviousClose — "the close
+        // before this chart began", which is not the same thing as "the
+        // previous trading session" whenever the window lands across a weekend
+        // or a holiday, and Yahoo shifts that window when the market is shut.
+        // A week of daily bars means the previous session is in the data
+        // itself, so the comparison no longer depends on interpreting a meta
+        // field whose meaning changes with the request.
+        //
+        // Cached because this runs on every dashboard render: uncached it was a
+        // blocking Yahoo call in the request path of the app's busiest page,
+        // and the one most likely to trip rate limiting.
+        return Cache::remember("index-quote:{$symbol}", now()->addMinutes(2), function () use ($symbol) {
+            $chart = $this->normalizeChart($this->yahoo->chart($symbol, '5d', '1d'));
+            $meta = $chart['meta'];
 
-        if (! isset($meta['regularMarketPrice'], $meta['chartPreviousClose']) || (float) $meta['chartPreviousClose'] === 0.0) {
-            return null;
-        }
+            // Yahoo pads the series with nulls for sessions it has no data for;
+            // normalizeChart turns those into 0.0.
+            $closes = [];
+            foreach ($chart['close'] as $i => $close) {
+                if ($close > 0) {
+                    $closes[] = ['close' => $close, 'timestamp' => $chart['timestamps'][$i] ?? null];
+                }
+            }
 
-        $price = (float) $meta['regularMarketPrice'];
-        $prevClose = (float) $meta['chartPreviousClose'];
+            if (count($closes) < 2) {
+                return null;
+            }
 
-        return [
-            'price' => $price,
-            'change' => $price - $prevClose,
-            'pct' => (($price - $prevClose) / $prevClose) * 100,
-        ];
+            $latest = $closes[count($closes) - 1];
+            $previous = $closes[count($closes) - 2];
+
+            // The live price during a session; the last bar's close once it has
+            // ended. The bar's own close is the fallback so the two can never
+            // disagree about which session is being described.
+            $price = (float) ($meta['regularMarketPrice'] ?? $latest['close']);
+            $prevClose = (float) $previous['close'];
+
+            if ($price <= 0 || $prevClose <= 0) {
+                return null;
+            }
+
+            $asOf = isset($meta['regularMarketTime'])
+                ? Carbon::createFromTimestamp((int) $meta['regularMarketTime'], config('app.timezone'))
+                : ($latest['timestamp'] ? Carbon::createFromTimestamp((int) $latest['timestamp'], config('app.timezone')) : null);
+
+            return [
+                'price' => $price,
+                'change' => $price - $prevClose,
+                'pct' => (($price - $prevClose) / $prevClose) * 100,
+                'as_of' => $asOf,
+                // Outside a session Yahoo keeps serving the last one, so the
+                // figure is real but it is not today's. Saying which day it
+                // belongs to is the difference between "the market is up" and
+                // "the market was up on Friday" — the header presented the
+                // second as the first.
+                'stale' => $asOf !== null && ! $asOf->isSameDay(Carbon::now(config('app.timezone'))),
+            ];
+        });
     }
 
     public function livePrice(string $ticker): float
@@ -124,32 +176,61 @@ class MarketDataService
     }
 
     /**
-     * @return array{roe: float, per: float, pbv: float, der: float, market_cap: float}
+     * @return array{roe: float, per: float, eps: float, pbv: float, der: float, market_cap: float}
      */
     public function fundamentals(string $ticker): array
     {
-        $summary = $this->yahoo->quoteSummary($ticker, ['financialData', 'defaultKeyStatistics']);
+        // summaryDetail joins the request because trailingPE, marketCap and
+        // the dividend yield live there, not in defaultKeyStatistics. Asking
+        // only for the other two modules meant trailingPE was never in the
+        // response at all: forwardPE is frequently absent for IDX listings, so
+        // the fallback chain ran out and price-to-earnings was written as a
+        // literal 0.00 for most of the exchange.
+        $summary = $this->yahoo->quoteSummary($ticker, [
+            'financialData',
+            'defaultKeyStatistics',
+            'summaryDetail',
+        ]);
+
         $financialData = $summary['financialData'] ?? [];
         $keyStats = $summary['defaultKeyStatistics'] ?? [];
+        $summaryDetail = $summary['summaryDetail'] ?? [];
 
         $roe = isset($financialData['returnOnEquity']['raw'])
             ? $financialData['returnOnEquity']['raw'] * 100
             : 0.0;
 
-        $per = $keyStats['forwardPE']['raw'] ?? $keyStats['trailingPE']['raw'] ?? 0.0;
-        $pbv = $keyStats['priceToBook']['raw'] ?? 0.0;
+        // Trailing first: it is what the company has actually earned, and
+        // forward is an estimate that not every IDX listing has one of.
+        $per = $summaryDetail['trailingPE']['raw']
+            ?? $keyStats['trailingPE']['raw']
+            ?? $keyStats['forwardPE']['raw']
+            ?? 0.0;
 
-        $derRaw = $financialData['debtToEquity']['raw'] ?? 0.0;
-        // Yahoo sometimes reports debt/equity as a percentage (e.g. 145.2
-        // instead of 1.452) — normalize back to a ratio, matching the
-        // legacy update_fundamentals.php heuristic.
-        $der = $derRaw > 10 ? $derRaw / 100 : $derRaw;
+        $eps = $keyStats['trailingEps']['raw'] ?? $keyStats['forwardEps']['raw'] ?? 0.0;
+        $pbv = $keyStats['priceToBook']['raw'] ?? $summaryDetail['priceToBook']['raw'] ?? 0.0;
 
-        $marketCap = $keyStats['enterpriseValue']['raw'] ?? $financialData['marketCap']['raw'] ?? 0.0;
+        // Yahoo reports debt-to-equity as a percentage — 145.2 meaning 1.452.
+        // The old code only divided when the figure exceeded 10, which is a
+        // guess that gets it wrong in both directions: a genuinely 12x-levered
+        // company was quietly rewritten to 0.12, and a company at 8% was left
+        // reading as 8x. The unit is fixed, so the conversion is too.
+        $der = ($financialData['debtToEquity']['raw'] ?? 0.0) / 100;
+
+        // marketCap, not enterpriseValue. EV is market capitalisation plus net
+        // debt, so for anything leveraged — every bank on this exchange — it
+        // is a multiple of the number this field is supposed to hold, and it
+        // was being written into market_cap and then used to size the heatmap
+        // and rank the sector tables.
+        $marketCap = $summaryDetail['marketCap']['raw']
+            ?? $financialData['marketCap']['raw']
+            ?? $keyStats['marketCap']['raw']
+            ?? 0.0;
 
         return [
             'roe' => (float) $roe,
             'per' => (float) $per,
+            'eps' => (float) $eps,
             'pbv' => (float) $pbv,
             'der' => (float) $der,
             'market_cap' => (float) $marketCap,
@@ -163,13 +244,19 @@ class MarketDataService
      * yet — the TradingView scan effectively *is* a live, self-updating
      * IDX ticker list, so nothing needs to be imported by hand.
      *
-     * Only carries fields TradingView can report unambiguously in
-     * real time (close/volume/vwap). vol_avg_20 and prev_close are
-     * intentionally NOT sourced from here — see scanIndonesiaExchange()
-     * docblock — UpdateMarketData's daily Yahoo-based EOD refresh owns
-     * both instead.
+     * Carries close, volume, vwap and previous_close. The last of those has to
+     * come from here rather than from the nightly Yahoo refresh: it is the
+     * baseline for the close in the same row, and a baseline lagging its price
+     * by a session is what made the daily change a two-day move.
      *
-     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, value_transaction: float}>
+     * prev_close is null when TradingView omits or zeroes it, and callers are
+     * expected to leave the stored value alone in that case rather than write
+     * a zero — a missing baseline must not become "up by the entire price".
+     *
+     * vol_avg_20 is still not sourced here: the only window this endpoint
+     * offers is 30 days and the app's field is a 20-day average.
+     *
+     * @return array<int, array{ticker: string, company_name: ?string, sector: ?string, close: float, volume: int, vwap: float, value_transaction: float, prev_close: ?float}>
      */
     public function realtimeScan(): array
     {
@@ -184,6 +271,9 @@ class MarketDataService
             }
 
             [$symbol, $description, $sector, $close, $volume, $vwap] = $d;
+            // Index 6 rather than destructured, so a response that predates the
+            // previous_close column still yields usable rows.
+            $prevClose = $d[6] ?? null;
 
             $close = (float) $close;
             $volume = (int) $volume;
@@ -196,6 +286,7 @@ class MarketDataService
                 'volume' => $volume,
                 'vwap' => $vwap !== null ? (float) $vwap : $close,
                 'value_transaction' => $close * $volume,
+                'prev_close' => is_numeric($prevClose) && (float) $prevClose > 0 ? (float) $prevClose : null,
             ];
         }
 

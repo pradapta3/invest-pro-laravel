@@ -1,0 +1,49 @@
+# Build context trimming — anything the image does not need, or that must
+# come from the server rather than a developer laptop.
+
+.git
+.gitignore
+.github
+
+# Secrets / per-host config. The container reads .env as a bind mount at
+# runtime (see docker-compose.yml), it is deliberately never baked in.
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Rebuilt inside the image by the dedicated build stages.
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+
+# Runtime state lives in the app-storage volume, not the image.
+storage/app/*
+!storage/app/.gitignore
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*
+
+# Local tooling noise
+.phpunit.cache
+.phpunit.result.cache
+.phpactor.json
+.idea
+.vscode
+.fleet
+.nova
+.zed
+npm-debug.log
+yarn-error.log
+auth.json
+Homestead.json
+Homestead.yaml
+
+# Docs and deploy helpers are not needed at runtime
+DEPLOYMENT.md
+README.md

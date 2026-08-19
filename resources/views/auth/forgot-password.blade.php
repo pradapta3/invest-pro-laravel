@@ -20,6 +20,6 @@
 </form>
 
 <p class="text-center text-sm text-slate-400 mt-6">
-    <a href="{{ route('login') }}" class="text-primary font-bold hover:underline"><i class="fa-solid fa-arrow-left mr-1"></i>Kembali ke login</a>
+    <a href="{{ route('login') }}" class="text-primary font-bold hover:underline"><x-icon name="arrow-left" class="mr-1 w-4 h-4" :solid="true" />Kembali ke login</a>
 </p>
 @endsection

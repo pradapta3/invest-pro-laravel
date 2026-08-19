@@ -8,11 +8,23 @@
                 this.price = e.detail.price;
                 this.trend = e.detail.trend;
                 this.forecast = e.detail.forecast;
-                const rendered = window.marked ? marked.parse(e.detail.ai_analysis) : e.detail.ai_analysis;
                 // ai_analysis is raw text from Gemini, not something we control —
                 // must be sanitized before x-html (= innerHTML) below, since an
                 // LLM response is untrusted input just like any other.
-                this.analysis = window.DOMPurify ? DOMPurify.sanitize(rendered) : '';
+                //
+                // Both libraries come from a CDN, so neither is guaranteed to be
+                // there. Falling back to '' was safe but silent: the modal opened
+                // with an empty Analisa box and no hint that anything went wrong.
+                // Escaping the text ourselves is just as safe and still shows it.
+                if (window.DOMPurify) {
+                    this.analysis = DOMPurify.sanitize(
+                        window.marked ? marked.parse(e.detail.ai_analysis) : e.detail.ai_analysis
+                    );
+                } else {
+                    const escaped = document.createElement('div');
+                    escaped.textContent = e.detail.ai_analysis;
+                    this.analysis = escaped.innerHTML.replace(/\n/g, '<br>');
+                }
                 this.open = true;
             });
         },
@@ -24,8 +36,8 @@
 >
     <div @click.outside="open = false" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-            <h3 class="font-bold"><i class="fa-solid fa-robot mr-2"></i>Prophet AI: <span x-text="ticker"></span></h3>
-            <button @click="open = false" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="font-bold"><x-icon name="robot" class="mr-2 w-4 h-4" :solid="true" />Prophet AI: <span x-text="ticker"></span></h3>
+            <button @click="open = false" class="text-white/70 hover:text-white"><x-icon name="xmark" class="w-4 h-4" :solid="true" /></button>
         </div>
         <div class="p-5">
             <div class="grid grid-cols-3 gap-3 text-center mb-4">

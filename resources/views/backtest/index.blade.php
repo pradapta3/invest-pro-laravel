@@ -15,10 +15,10 @@
 
 <div class="flex justify-between items-center mb-4">
     <div>
-        <h1 class="text-xl font-extrabold"><i class="fa-solid fa-flask text-emerald-600 mr-2"></i>Backtest</h1>
+        <h1 class="text-xl font-extrabold"><x-icon name="flask" class="text-emerald-600 mr-2 w-4 h-4" :solid="true" />Backtest</h1>
         <p class="text-sm text-slate-400">Uji strategi terhadap data historis asli, bukan asumsi.</p>
     </div>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 text-sm text-amber-800">
@@ -60,7 +60,7 @@
     <div class="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700 font-semibold">{{ $error }}</div>
 @elseif ($walkForwardReport)
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-4">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
             <h2 class="font-bold">Per Periode</h2>
             <span class="text-xs font-bold px-3 py-1 rounded-full {{ $walkForwardReport->isConsistent() ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700' }}">
                 {{ $walkForwardReport->isConsistent() ? 'Konsisten antar periode' : 'TIDAK konsisten — hati-hati' }}
@@ -98,6 +98,12 @@
 @if ($result)
 <script>
 const equity = @json($result->equityCurve());
+
+// The libraries are bundled now, and the bundle is loaded as a module.
+// Modules are deferred, so they run after the HTML is parsed but before
+// DOMContentLoaded — meaning Chart does not exist while this inline script
+// is being parsed, only by the time this listener fires.
+document.addEventListener('DOMContentLoaded', function () {
 if (equity.length > 0) {
     const ctx = document.getElementById('equityChart').getContext('2d');
     new Chart(ctx, {
@@ -113,6 +119,7 @@ if (equity.length > 0) {
         },
     });
 }
+});
 </script>
 @endif
 @endpush

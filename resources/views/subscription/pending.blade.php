@@ -5,7 +5,7 @@
 @section('content')
 <div class="text-center">
     <div class="w-16 h-16 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center mx-auto mb-4">
-        <i class="fa-solid fa-hourglass-half text-2xl"></i>
+        <x-icon name="hourglass-half" class="text-2xl w-4 h-4" :solid="true" />
     </div>
 
     @if ($subscription === null)
@@ -23,7 +23,7 @@
     <form method="POST" action="{{ route('logout') }}" class="mt-4">
         @csrf
         <button type="submit" class="text-sm font-bold text-slate-400 hover:text-slate-600">
-            <i class="fa-solid fa-right-from-bracket mr-1"></i>Keluar
+            <x-icon name="right-from-bracket" class="mr-1 w-4 h-4" :solid="true" />Keluar
         </button>
     </form>
 </div>

@@ -3,17 +3,20 @@
 @section('title', 'Pengguna — Admin')
 
 @section('content')
-<div class="flex justify-between items-center mb-6">
+{{-- The heading and a 224px search box do not fit side by side on a phone, so
+     they stack until sm. --}}
+<div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
     <h1 class="text-xl font-extrabold">Pengguna</h1>
-    <form method="GET" class="flex gap-2">
-        <input type="text" name="q" value="{{ $search }}" placeholder="Cari nama/email..." class="rounded-lg border border-slate-200 px-3 py-2 text-sm w-56">
-        <button class="rounded-lg bg-slate-800 text-white text-sm font-bold px-4 py-2">Cari</button>
+    <form method="GET" class="flex gap-2 w-full sm:w-auto">
+        <input type="text" name="q" value="{{ $search }}" placeholder="Cari nama/email..."
+               class="flex-1 sm:flex-none rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm sm:w-56">
+        <button class="shrink-0 rounded-lg bg-slate-800 text-white text-sm font-bold px-4 py-2">Cari</button>
     </form>
 </div>
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm min-w-[40rem]">
             <thead class="bg-slate-50 text-xs uppercase text-slate-400">
                 <tr>
                     <th class="text-left px-4 py-3">Nama</th>
@@ -26,7 +29,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @foreach ($users as $u)
-                    @php($sub = $u->currentSub)
+                    @php $sub = $u->currentSub; @endphp
                     <tr class="hover:bg-slate-50">
                         <td class="px-4 py-3 font-bold">{{ $u->name }}</td>
                         <td class="py-3 text-slate-500">{{ $u->email }}</td>

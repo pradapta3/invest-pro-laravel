@@ -4,8 +4,8 @@
 
 @section('content')
 <div class="flex justify-between items-center mb-4">
-    <h1 class="text-xl font-extrabold"><i class="fa-regular fa-calendar-check text-primary mr-2"></i>Seasonal Compass</h1>
-    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><i class="fa-solid fa-arrow-left mr-2"></i>Dashboard</a>
+    <h1 class="text-xl font-extrabold"><x-icon name="calendar-check" class="text-primary mr-2 w-4 h-4" />Seasonal Compass</h1>
+    <a href="{{ route('dashboard') }}" class="text-sm font-bold bg-slate-100 text-slate-500 rounded-lg px-3 py-2 hover:bg-slate-200 transition"><x-icon name="arrow-left" class="mr-2 w-4 h-4" :solid="true" />Dashboard</a>
 </div>
 
 <form method="GET" class="mb-4 flex gap-2 max-w-sm">
@@ -14,7 +14,7 @@
 </form>
 
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+    <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex justify-between items-center">
         <h2 class="font-bold">{{ $ticker }} <span class="text-sm font-normal text-slate-400">{{ $ref?->nama_perusahaan }}</span></h2>
         @if (!empty($monthlyByYear))
             <span class="text-xs font-bold bg-white border border-slate-200 rounded-full px-3 py-1">

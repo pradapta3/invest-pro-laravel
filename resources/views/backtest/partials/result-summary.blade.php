@@ -45,7 +45,34 @@
     </div>
 
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 font-bold text-sm">Semua Trade ({{ $result->tradeCount() }})</div>
+        @php
+            // The table used to render every trade. Across the full IDX universe
+            // a two-year run produces tens of thousands of them, and building
+            // that markup exhausted PHP's 512M memory_limit — a fatal error, so
+            // the page came back as a bare 500. Measured at 918 tickers: 38MB of
+            // HTML for one strategy, and walk-forward died outright.
+            //
+            // Every statistic above is computed from $result over the complete
+            // set, so capping the listing changes no number on this page; it
+            // only stops the browser being handed a table nobody scrolls.
+            $universe = (int) config('screener.backtest_universe', 150);
+            $tradeLimit = 200;
+            $shownTrades = $result->trades->sortByDesc(fn ($t) => $t->exitDate->timestamp)->take($tradeLimit);
+            $hiddenTrades = $result->tradeCount() - $shownTrades->count();
+        @endphp
+        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-500 flex flex-wrap items-center justify-between gap-2">
+            <span>
+                Semua Trade ({{ number_format($result->tradeCount()) }})
+                @if ($universe > 0)
+                    <span class="font-semibold text-slate-400">— {{ $universe }} emiten paling likuid</span>
+                @endif
+            </span>
+            @if ($hiddenTrades > 0)
+                <span class="text-xs font-semibold text-slate-400">
+                    menampilkan {{ number_format($tradeLimit) }} terbaru — {{ number_format($hiddenTrades) }} lainnya tidak ditampilkan
+                </span>
+            @endif
+        </div>
         <div class="overflow-x-auto max-h-96 overflow-y-auto">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 text-xs uppercase text-slate-400 sticky top-0">
@@ -59,7 +86,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach ($result->trades->sortByDesc(fn($t) => $t->exitDate->timestamp) as $trade)
+                    @foreach ($shownTrades as $trade)
                         <tr>
                             <td class="px-4 py-2 font-bold">{{ str_replace('.JK', '', $trade->ticker) }}</td>
                             <td class="py-2 text-slate-500">{{ $trade->entryDate->format('d M Y') }} @ {{ number_format($trade->entryPrice) }}</td>

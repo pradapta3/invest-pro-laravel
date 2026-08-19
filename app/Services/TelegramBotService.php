@@ -114,14 +114,51 @@ class TelegramBotService
             return false;
         }
 
-        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", [
+        // Telegram caps a message at 4096 characters and rejects anything
+        // longer outright — the user gets nothing rather than a long message.
+        // AI replies are the only text here that can reach that, so split
+        // instead of losing it.
+        $chunks = $this->splitForTelegram($text);
+
+        if (count($chunks) > 1) {
+            $ok = true;
+
+            foreach ($chunks as $chunk) {
+                $ok = $this->sendMessage($chatId, $chunk, $parseMode) && $ok;
+            }
+
+            return $ok;
+        }
+
+        $payload = [
             'chat_id' => $chatId,
             'text' => $text,
-            'parse_mode' => $parseMode,
             'disable_web_page_preview' => true,
-        ]);
+        ];
+
+        if ($parseMode !== '') {
+            $payload['parse_mode'] = $parseMode;
+        }
+
+        $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", $payload);
 
         if (! $response->successful() || ! $response->json('ok')) {
+            $description = (string) $response->json('description');
+
+            // Telegram rejects the entire message when parse_mode is set and
+            // the text has an unbalanced entity — one stray '*' or '_' and the
+            // user gets nothing at all. Since some of this text is written by
+            // Gemini, that is not a hypothetical. Resend unformatted rather
+            // than drop the message.
+            if ($parseMode !== '' && stripos($description, 'parse entities') !== false) {
+                Log::channel('telegram_bot')->info('Telegram rejected the formatting; resending as plain text', [
+                    'chat_id' => $chatId,
+                    'parse_mode' => $parseMode,
+                ]);
+
+                return $this->sendMessage($chatId, $text, '');
+            }
+
             Log::channel('telegram_bot')->warning('Telegram sendMessage failed', [
                 'chat_id' => $chatId,
                 'response' => $response->json(),
@@ -131,6 +168,49 @@ class TelegramBotService
         }
 
         return true;
+    }
+
+    /**
+     * Break text into pieces Telegram will accept, preferring line breaks so
+     * a split lands between lines rather than inside one — the digests build
+     * their HTML markup one line at a time, so a line boundary is also
+     * guaranteed not to be inside a tag. Falls back to the last space, and
+     * finally to a hard cut for text with neither.
+     *
+     * @return array<int, string>
+     */
+    private function splitForTelegram(string $text): array
+    {
+        $limit = 4096;
+
+        if (mb_strlen($text) <= $limit) {
+            return [$text];
+        }
+
+        $chunks = [];
+
+        while (mb_strlen($text) > $limit) {
+            $window = mb_substr($text, 0, $limit);
+
+            $cut = mb_strrpos($window, "\n");
+
+            if ($cut === false || $cut < (int) ($limit / 2)) {
+                $cut = mb_strrpos($window, ' ');
+            }
+
+            if ($cut === false || $cut === 0) {
+                $cut = $limit;
+            }
+
+            $chunks[] = rtrim(mb_substr($text, 0, $cut));
+            $text = ltrim(mb_substr($text, $cut));
+        }
+
+        if ($text !== '') {
+            $chunks[] = $text;
+        }
+
+        return $chunks;
     }
 
     /**
@@ -247,7 +327,11 @@ class TelegramBotService
     {
         $score = $this->ta->calculateScore($price, $ref);
         $plan = $this->ta->buildTradingPlan($price, 'swing');
-        $flow = (float) $price->close_price > (float) $price->vwap ? 'Accumulation 🟢' : 'Distribution 🔴';
+        $flow = match ($price->moneyFlow()) {
+            'AKUM' => 'Accumulation 🟢',
+            'DIST' => 'Distribution 🔴',
+            default => 'Belum ada data VWAP ⚪',
+        };
         $t = $ref->cleanTicker();
 
         $lines = [
@@ -263,7 +347,7 @@ class TelegramBotService
             "🛒 Entry: <code>{$plan->entryText()}</code>",
             '✅ Target: <code>'.number_format($plan->takeProfit).'</code>',
             '🛑 Stoploss: <code>'.number_format($plan->stopLoss).'</code>',
-            "⚖️ RRR: 1 : {$plan->riskRewardRatio}",
+            '⚖️ RRR: '.$plan->riskRewardText().($plan->risksMoreThanItTargets() ? ' ⚠️ risiko > target' : ''),
             '',
             '💡 <i>Data Realtime. Disclaimer On.</i>',
         ];
@@ -281,7 +365,7 @@ class TelegramBotService
     {
         $score = $this->ta->calculateScore($price, $ref);
         $plan = $this->ta->buildTradingPlan($price, 'swing');
-        $flow = (float) $price->close_price > (float) $price->vwap ? 'AKUM' : 'DIST';
+        $flow = $price->moneyFlow() ?? '-';
         $t = $ref->cleanTicker();
 
         $lines = [
@@ -289,7 +373,7 @@ class TelegramBotService
             '--------------------------------',
             "📊 Score: <b>{$score->total()}/100</b> (".$this->verdictWithEmoji($score).')',
             '💰 Price: '.number_format((float) $price->close_price),
-            "⚖️ R/R Ratio: <b>1:{$plan->riskRewardRatio}</b>",
+            '⚖️ R/R Ratio: <b>'.$plan->riskRewardText().'</b>'.($plan->risksMoreThanItTargets() ? ' ⚠️ risiko &gt; target' : ''),
             "🌊 Flow: {$flow}",
             '',
             '🎯 <b>TRADING PLAN:</b>',
@@ -466,8 +550,12 @@ class TelegramBotService
         $price = StockPrice::query()->with('stockRef')->find($ticker.'.JK');
 
         if ($price === null || $price->stockRef === null) {
-            $ai = $this->ai->analyzeUnknownTicker($ticker);
-            $this->sendMessage($chatId, "❌ Data <b>{$ticker}</b> tidak ditemukan.\n\n🧠 <b>AI:</b> {$ai}", 'Markdown');
+            // HTML markup, so parse_mode must be HTML — sent as 'Markdown' the
+            // <b> tags were shown to the user as literal text. The AI half is
+            // escaped because it is the one part of this string the app didn't
+            // write, and a '<' in it would break the parse.
+            $ai = e($this->ai->analyzeUnknownTicker($ticker));
+            $this->sendMessage($chatId, "❌ Data <b>{$ticker}</b> tidak ditemukan.\n\n🧠 <b>AI:</b> {$ai}", 'HTML');
 
             return;
         }

@@ -1,0 +1,177 @@
+# Production stack for dompetijo.mbayar.my.id
+#
+#   caddy  →  app (nginx + php-fpm)  →  mysql
+#                queue, scheduler   ↗
+#
+# Every service reads its configuration from the single .env file in this
+# directory: Laravel gets it as a read-only bind mount, and Compose reads the
+# same file for the ${...} substitutions below. One file, one source of truth.
+#
+#   cp .env.production.example .env   # then edit it
+#   ./deploy.sh
+
+name: dompetijo
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database. Deliberately publishes no port — only the container network can
+  # reach it. Use `docker compose exec mysql mysql -u root -p` for a shell.
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-name-resolve
+      --max-allowed-packet=64M
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is not set in .env}
+      MYSQL_DATABASE: ${DB_DATABASE:?DB_DATABASE is not set in .env}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is not set in .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set in .env}
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # $$ escapes the substitution so the password is read from the
+      # container's own environment instead of being baked into the config.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks:
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # Web tier: nginx + php-fpm, plus the boot sequence (migrate, cache warm).
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dompetijo-app:latest
+    restart: unless-stopped
+    environment:
+      CONTAINER_ROLE: app
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      # Set to false to deploy without touching the schema.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      # Passed as a real environment variable, not just left in .env:
+      # bootstrap/app.php reads this before Laravel parses .env, so the file
+      # alone would not be visible in time. See the comment there.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    volumes:
+      - ./.env:/var/www/html/.env:ro
+      - app-storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/up"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Generous, because the first boot runs every migration before nginx
+      # starts listening.
+      start_period: 120s
+    networks:
+      - backend
+      - edge
+
+  # ---------------------------------------------------------------------------
+  # Queue worker. Same image, different role. QUEUE_CONNECTION=database, so
+  # this drains the `jobs` table created by the 0001_01_01_000002 migration.
+  # ---------------------------------------------------------------------------
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dompetijo-app:latest
+    restart: unless-stopped
+    environment:
+      CONTAINER_ROLE: queue
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    volumes:
+      - ./.env:/var/www/html/.env:ro
+      - app-storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    stop_grace_period: 60s
+    networks:
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # Scheduler — the market-data refresh cadences in routes/console.php only
+  # happen if this is running. Without it the app shows stale prices forever.
+  # ---------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dompetijo-app:latest
+    restart: unless-stopped
+    environment:
+      CONTAINER_ROLE: scheduler
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    volumes:
+      - ./.env:/var/www/html/.env:ro
+      - app-storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    stop_grace_period: 60s
+    networks:
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # TLS edge. Requests a Let's Encrypt certificate for APP_DOMAIN on first
+  # start, which requires the DNS A record to already point at this host and
+  # ports 80/443 to be open.
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is not set in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is not set in .env}
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # issued certificates — do not delete casually,
+                              # Let's Encrypt rate-limits re-issuance
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks:
+      - edge
+
+networks:
+  # Only caddy and app sit on `edge`, so the database is not on the same
+  # network as the container that terminates public traffic.
+  edge:
+    driver: bridge
+
+  # Not `internal: true` — the scheduler and queue worker have to reach Yahoo
+  # Finance, TradingView, Telegram and Gemini to do their jobs. MySQL is kept
+  # private by publishing no ports for it, not by cutting egress.
+  backend:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  app-storage:
+  caddy-data:
+  caddy-config:

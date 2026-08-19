@@ -9,6 +9,7 @@ use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -69,13 +70,43 @@ class UserManagementController extends Controller
             'months' => ['required', 'integer', 'min:1', 'max:24'],
         ]);
 
-        Subscription::create([
-            'user_id' => $user->id,
+        $active = [
             'subscription_plan_id' => $data['subscription_plan_id'],
             'status' => SubscriptionStatus::Active,
             'starts_at' => now(),
             'ends_at' => now()->addMonths((int) $data['months']),
-        ]);
+        ];
+
+        // One transaction: the promote and the cancel are dependent writes, and
+        // a failure between them would leave the user activated while a stray
+        // Pending row put them straight back on the "Menunggu Aktivasi" list —
+        // the exact symptom this whole change removes.
+        DB::transaction(function () use ($user, $active) {
+            // Promote the request the user actually made, rather than adding a
+            // second row beside it. Creating a new one left the original Pending
+            // subscription untouched, and the admin dashboard counts pending
+            // rows — so an approved user stayed on the list and in its badge
+            // forever, even though their access had already opened.
+            $pending = $user->subscriptions()
+                ->where('status', SubscriptionStatus::Pending)
+                ->latest('id')
+                ->first();
+
+            if ($pending !== null) {
+                $pending->update($active);
+            } else {
+                // No pending request — an admin granting or renewing access
+                // directly. Nothing to promote, so start a fresh subscription.
+                Subscription::create($active + ['user_id' => $user->id]);
+            }
+
+            // Anything still pending for this user is now superseded. Without
+            // this, a second registration attempt would leave a stray row that
+            // puts them back on the pending list.
+            $user->subscriptions()
+                ->where('status', SubscriptionStatus::Pending)
+                ->update(['status' => SubscriptionStatus::Cancelled]);
+        });
 
         return back()->with('status', "Langganan {$user->name} diaktifkan.");
     }

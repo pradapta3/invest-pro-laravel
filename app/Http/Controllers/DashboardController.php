@@ -7,6 +7,7 @@ use App\Models\StockRef;
 use App\Services\MarketData\MarketDataService;
 use App\Services\StockScreenerService;
 use App\Services\TechnicalAnalysisService;
+use App\Support\QuoteFreshness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -67,6 +68,9 @@ class DashboardController extends Controller
             'query' => $query,
             'ihsg' => $this->marketData->indexQuote(),
             'marketMood' => $this->marketMood(),
+            // Rendered server-side so the header is right before any
+            // JavaScript runs; the live-quote poller then keeps it moving.
+            'quoteFreshness' => QuoteFreshness::current(),
             'tickerTape' => StockPrice::query()->orderByDesc('volume')->limit(25)->get(),
             'ta' => $this->ta,
             'watchlistedTickers' => DB::table('user_watchlists')->where('user_id', $userId)->pluck('ticker')->all(),
@@ -107,7 +111,11 @@ class DashboardController extends Controller
             return $stocks->sortByDesc(function (StockPrice $p) use ($cfg) {
                 $points = $p->volumeSpikeRatio() * $cfg['sort_weight_volume_spike'];
                 $points += $p->is_breakout ? $cfg['sort_weight_breakout'] : 0;
-                $points += (float) $p->close_price > (float) $p->vwap ? $cfg['sort_weight_above_vwap'] : 0;
+                // moneyFlow(), not a hand-written close > vwap: unguarded, that
+                // was true for every row whose VWAP had never been collected
+                // (`close > 0`), floating the whole unprocessed exchange above
+                // the names genuinely trading above their VWAP.
+                $points += $p->moneyFlow() === 'AKUM' ? $cfg['sort_weight_above_vwap'] : 0;
 
                 return $points;
             })->values();
@@ -130,11 +138,11 @@ class DashboardController extends Controller
         $pct = $this->screener->marketBreadthPct();
 
         return match (true) {
-            $pct >= 70 => ['pct' => $pct, 'label' => 'Greed', 'color' => '#ef4444', 'icon' => 'fa-fire'],
-            $pct >= 55 => ['pct' => $pct, 'label' => 'Bullish', 'color' => '#22c55e', 'icon' => 'fa-arrow-trend-up'],
-            $pct <= 30 => ['pct' => $pct, 'label' => 'Fear', 'color' => '#3b82f6', 'icon' => 'fa-snowflake'],
-            $pct <= 45 => ['pct' => $pct, 'label' => 'Bearish', 'color' => '#64748b', 'icon' => 'fa-cloud-rain'],
-            default => ['pct' => $pct, 'label' => 'Neutral', 'color' => '#f59e0b', 'icon' => 'fa-scale-balanced'],
+            $pct >= 70 => ['pct' => $pct, 'label' => 'Greed', 'color' => '#ef4444', 'icon' => 'fire'],
+            $pct >= 55 => ['pct' => $pct, 'label' => 'Bullish', 'color' => '#22c55e', 'icon' => 'arrow-trend-up'],
+            $pct <= 30 => ['pct' => $pct, 'label' => 'Fear', 'color' => '#3b82f6', 'icon' => 'snowflake'],
+            $pct <= 45 => ['pct' => $pct, 'label' => 'Bearish', 'color' => '#64748b', 'icon' => 'cloud-rain'],
+            default => ['pct' => $pct, 'label' => 'Neutral', 'color' => '#f59e0b', 'icon' => 'scale-balanced'],
         };
     }
 }

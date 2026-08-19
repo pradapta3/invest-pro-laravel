@@ -18,6 +18,100 @@
 
 return [
 
+    /*
+    |--------------------------------------------------------------------------
+    | Realtime refresh cadence
+    |--------------------------------------------------------------------------
+    |
+    | Cron expression for idx:update-realtime-quotes (see routes/console.php).
+    | It is worth tuning because the command is cheap: realtimeScan() is a
+    | single TradingView request covering the whole exchange, not one per
+    | ticker, so the default five-minute cadence costs 12 requests an hour no
+    | matter how many emiten are tracked. Use '* * * * *' for near-live quotes,
+    | or back off if TradingView starts rate-limiting.
+    |
+    | (Written out in words rather than as a cron literal on purpose: a star
+    | followed by a slash inside this comment would close it early.)
+    |
+    | This lives in config rather than being read with env() at the schedule
+    | itself: once config:cache has run — which the container entrypoint does
+    | on every boot — Laravel stops loading .env at all, and an env() call
+    | outside a config file would silently fall back to its default.
+    |
+    */
+
+    'realtime_cron' => env('IDX_REALTIME_CRON', '*/5 * * * *'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trading window and quote freshness
+    |--------------------------------------------------------------------------
+    |
+    | The window idx:update-realtime-quotes runs in, and the age past which a
+    | stored quote stops counting as current. Both are read by
+    | App\Support\MarketClock, which the schedule, the live-quote endpoint and
+    | the freshness badge all share, so the app cannot disagree with itself
+    | about whether the exchange is open.
+    |
+    | quote_stale_after_seconds should be comfortably more than the realtime
+    | cron interval — at the default five minutes, 420 leaves room for one
+    | missed run before anything is called stale. Tighten it if you move the
+    | cron to every minute.
+    |
+    */
+
+    'market_open' => env('IDX_MARKET_OPEN', '09:00'),
+    'market_close' => env('IDX_MARKET_CLOSE', '16:00'),
+    'quote_stale_after_seconds' => (int) env('IDX_QUOTE_STALE_AFTER', 420),
+
+    /*
+    | How often the dashboard asks the server for new figures. The data cannot
+    | be fresher than the cron that writes it, so polling faster than that only
+    | adds load — this is deliberately a fraction of the cron interval, not a
+    | guess at how "live" the page should feel. 0 turns polling off.
+    */
+
+    'live_poll_seconds' => (int) env('IDX_LIVE_POLL_SECONDS', 20),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Backtest universe
+    |--------------------------------------------------------------------------
+    |
+    | How many tickers a backtest covers when none are named, ranked by traded
+    | value. See BacktestEngine::defaultUniverse() for why this is capped at
+    | all. 0 means every ticker that has price history.
+    |
+    */
+
+    'backtest_universe' => (int) env('BACKTEST_UNIVERSE', 150),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Financial statement history
+    |--------------------------------------------------------------------------
+    |
+    | How many fiscal years the stock detail page shows, and how many
+    | idx:update-financials fetches. Five is enough to see a trend through a
+    | full cycle without the table needing to scroll on a phone.
+    |
+    */
+
+    'financial_statement_years' => (int) env('FINANCIAL_STATEMENT_YEARS', 5),
+
+    /*
+    | How long an emiten's statements stay fresh before idx:update-financials
+    | asks again. Annual reports land at different times — IDX audited accounts
+    | are due at the end of March, but restatements and late filings arrive all
+    | year — so rather than modelling filing deadlines the command simply
+    | re-asks every emiten on this cycle and picks up whatever is new. The
+    | schedule runs daily on a slice, so the whole exchange rotates through in
+    | roughly this many days.
+    */
+
+    'financial_refresh_days' => (int) env('FINANCIAL_REFRESH_DAYS', 30),
+
+
     'baseline' => [
         // Applied by every strategy before its own filters, matching the
         // `close_price > 50 AND volume > 0` guard repeated everywhere.
@@ -143,6 +237,12 @@ return [
         'swing' => [
             'entry_band_pct' => 0.01,
             'stop_loss_buffer_pct' => 0.03,
+            // Entering at market leaves the stop a pivot range plus this
+            // buffer below, while R1 sits a fraction of that above — so the
+            // first pivot target was losing on risk/reward in every session
+            // measured. Below this ratio the plan reaches for R2 instead.
+            // Set to 0 to always target R1, whatever the ratio.
+            'min_risk_reward' => 1.0,
         ],
         'bsjp' => [
             'take_profit_pct' => 0.03,
@@ -166,16 +266,52 @@ return [
         'trend_above_vwap' => 15,
         'momentum_macd_positive' => 10,
         'momentum_rsi_sweet_spot' => 10,
-        'momentum_rsi_extreme' => 5,
+        // Oversold only — see calculateScore(). This was 'momentum_rsi_extreme'
+        // and paid out at both ends of the range, which rewarded an overbought
+        // stock for being overbought.
+        'momentum_rsi_oversold' => 5,
         'momentum_stoch_oversold' => 5,
+        // One graded volume award replacing the old two-step pair; the sum is
+        // unchanged, so the flow maximum is still 25.
+        'flow_volume' => 15,
         'flow_volume_above_avg' => 10,
         'flow_volume_spike' => 5,
         'flow_breakout' => 10,
         'fundamental_roe' => 5,
         'fundamental_der' => 5,
         'fundamental_per' => 5,
+        /*
+        | Ramp endpoints for the graded awards.
+        |
+        | Each pair is (no credit at, full credit at) for one rule. The old
+        | scoring was entirely all-or-nothing, which meant the 0-100 scale
+        | could only ever land on 21 values — every multiple of 5 — so a
+        | ranking of 900 emiten collapsed into 21 buckets and two stocks were
+        | indistinguishable unless they differed on a whole condition. Between
+        | the two endpoints credit is now linear, and outside them it clamps,
+        | so the old thresholds still mark where credit starts and stops.
+        |
+        | Written as ratios where the underlying figure scales with price
+        | (a MACD histogram of 5 means something different on a Rp150 stock
+        | than on a Rp9,000 one).
+        */
+        'ma20_premium_full' => 0.03,      // 3% above MA20 earns the full trend award
+        'vwap_premium_full' => 0.02,
+        'macd_hist_ratio_full' => 0.005,  // hist/close
+        'rsi_approach_from' => 40,        // credit ramps in from here up to the sweet spot
+        'stoch_full_at' => 0.0,           // %K 0 is maximum oversold
+        'volume_ratio_full' => 2.0,
+        'fundamental_roe_full' => 25,
+        'fundamental_der_full' => 0.0,    // debt-free earns the whole award
+        'fundamental_per_full' => 8,
+
         'rsi_sweet_spot_min' => 50,
         'rsi_sweet_spot_max' => 70,
+        // Were hard-coded in calculateScore(), which is what this file exists
+        // to prevent. rsi_oversold_max is the only one still consulted:
+        // above rsi_sweet_spot_max now scores nothing at all.
+        'rsi_oversold_max' => 30,
+        'stoch_oversold_max' => 20,
         'volume_above_avg_ratio' => 1.2,
         'volume_spike_ratio' => 2.0,
         'fundamental_roe_min' => 10,
