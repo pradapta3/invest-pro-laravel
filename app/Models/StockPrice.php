@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Support\IdxPrice;
+use App\Support\MarketClock;
+use App\Support\QuoteFreshness;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -121,7 +123,7 @@ class StockPrice extends Model
     {
         $prevClose = (float) $this->prev_close;
 
-        return $prevClose > 0 && ! $this->baselineIsStale() ? $prevClose : null;
+        return $prevClose > 0 && ! $this->baselineIsStale() && ! $this->rowIsFrozen() ? $prevClose : null;
     }
 
     /**
@@ -145,12 +147,47 @@ class StockPrice extends Model
             return false;
         }
 
+        $maxAge = config('screener.baseline_max_age_days');
+
         // Against the price's own timestamp, not against now: after Friday's
         // close a Thursday baseline is still the correct one for the Friday
         // price sitting beside it, and stays correct all weekend.
         $priceAt = $this->updated_at ?? now();
 
-        return $this->prev_close_date->diffInDays($priceAt) > config('screener.baseline_max_age_days');
+        return $this->prev_close_date->diffInDays($priceAt) > $maxAge;
+    }
+
+    /**
+     * Whether this row alone has stopped being written while the rest of the
+     * board is still moving.
+     *
+     * The check above only catches a baseline that fell behind its own price.
+     * A row the scan has stopped returning — a suspension, a delisting, a
+     * ticker the scan does not cover — freezes the price and the baseline
+     * *together*, so the two stay perfectly consistent with each other and
+     * last week's change goes on being presented as this morning's. Nothing
+     * about the row itself gives that away.
+     *
+     * Deliberately relative to the newest write in the table rather than to
+     * the clock: when the scheduler stops, or on a public holiday this app has
+     * no calendar for, every row is equally old and the header badge already
+     * says so in amber. Blanking nine hundred changes on top of that would be
+     * noise. This fires only when the board is demonstrably current and one
+     * row is not.
+     */
+    public function rowIsFrozen(): bool
+    {
+        if (! MarketClock::isOpen() || $this->updated_at === null) {
+            return false;
+        }
+
+        $newest = QuoteFreshness::newestWrite();
+
+        if ($newest === null || MarketClock::isStale($newest)) {
+            return false;
+        }
+
+        return $this->updated_at->diffInSeconds($newest) > (int) config('screener.quote_stale_after_seconds');
     }
 
     /**
@@ -213,6 +250,18 @@ class StockPrice extends Model
     {
         if ((float) $this->prev_close <= 0) {
             return 'Belum ada harga penutupan sebelumnya untuk pembanding. Jalankan idx:update-realtime-quotes, atau idx:backfill-price-history bila emiten ini belum punya riwayat.';
+        }
+
+        // Checked before the baseline, because a frozen row's baseline is
+        // stale only as a consequence: the real fault is that nothing is
+        // writing this emiten, and saying "check the scheduler" would send
+        // someone after a scheduler that is running perfectly.
+        if ($this->rowIsFrozen()) {
+            return sprintf(
+                'Baris ini belum diperbarui sejak %s sementara emiten lain terus masuk — %s tidak muncul di scan (suspensi, delisting, atau memang tidak tercakup). Jalankan idx:audit-quotes.',
+                $this->updated_at->translatedFormat('d M Y H:i'),
+                str_replace('.JK', '', $this->ticker),
+            );
         }
 
         if ($this->baselineIsStale()) {

@@ -20,14 +20,47 @@ use Illuminate\Support\Carbon;
  */
 final class QuoteFreshness
 {
+    /** Memoised newest write, and when that was worked out. */
+    private static ?Carbon $newestWrite = null;
+
+    private static ?float $newestWriteReadAt = null;
+
     /**
      * @return array{label: string, title: string, stale: bool, open: bool, text_class: string, dot_class: string, at: ?string}
      */
     public static function current(): array
     {
-        $lastWrite = StockPrice::query()->max('updated_at');
+        return self::describe(self::newestWrite());
+    }
 
-        return self::describe($lastWrite ? Carbon::parse($lastWrite, config('app.timezone')) : null);
+    /**
+     * When any emiten was last written.
+     *
+     * Also the yardstick for whether one row has stopped being written while
+     * the rest of the board moves — see StockPrice::rowIsFrozen() — which is a
+     * per-row question asked of every row on the page, so it cannot be a query
+     * each. Memoised, with a short expiry so a queue worker or a long-lived
+     * command does not answer from a snapshot taken an hour ago.
+     */
+    public static function newestWrite(): ?Carbon
+    {
+        if (self::$newestWriteReadAt !== null && microtime(true) - self::$newestWriteReadAt < 30) {
+            return self::$newestWrite;
+        }
+
+        $max = StockPrice::query()->max('updated_at');
+
+        self::$newestWrite = $max ? Carbon::parse($max, config('app.timezone')) : null;
+        self::$newestWriteReadAt = microtime(true);
+
+        return self::$newestWrite;
+    }
+
+    /** Drops the memo, for tests and for commands that have just written. */
+    public static function forget(): void
+    {
+        self::$newestWrite = null;
+        self::$newestWriteReadAt = null;
     }
 
     /**

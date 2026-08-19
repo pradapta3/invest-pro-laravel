@@ -19,7 +19,8 @@ use Illuminate\Console\Command;
  */
 class UpdateMarketData extends Command
 {
-    protected $signature = 'idx:update-market-data';
+    protected $signature = 'idx:update-market-data
+        {--tickers=* : Refresh only these tickers, e.g. --tickers=BYAN --tickers=BBCA}';
 
     protected $description = 'Refresh OHLCV and technical indicators for every tracked ticker from Yahoo Finance (EOD, 6mo history)';
 
@@ -30,9 +31,47 @@ class UpdateMarketData extends Command
         parent::__construct();
     }
 
+    /**
+     * Drop the bars where nothing traded, keeping every series aligned.
+     *
+     * Yahoo returns null for a day an emiten did not trade — a suspension, or
+     * an exchange holiday inside the requested range — and MarketDataService
+     * coerces those nulls to 0.0. Fed to the indicators they are read as a
+     * session that closed at zero: three suspended days in a 40-day series
+     * move MA20 from 1,647 to 1,399 and RSI from 100 to 52, which is enough
+     * to flip the trend component of the score and the entry side of the
+     * trading plan. A halt on the most recent bar writes close_price = 0.
+     *
+     * idx:backfill-price-history has always skipped them, one command over.
+     * The rule belongs to both.
+     *
+     * @param  array{timestamps: int[], open: float[], high: float[], low: float[], close: float[], volume: int[], meta: array}  $chart
+     * @return array{timestamps: int[], open: float[], high: float[], low: float[], close: float[], volume: int[], meta: array}
+     */
+    private function tradedBarsOnly(array $chart): array
+    {
+        // The close decides, and every other series follows its indices — a
+        // bar filtered out of the closes but left in the highs would silently
+        // pair each day's close with the next day's high.
+        $keep = array_keys(array_filter($chart['close'] ?? [], fn (float $c) => $c > 0));
+
+        foreach (['timestamps', 'open', 'high', 'low', 'close', 'volume'] as $series) {
+            $chart[$series] = array_values(array_intersect_key($chart[$series] ?? [], array_flip($keep)));
+        }
+
+        return $chart;
+    }
+
     public function handle(): int
     {
-        $tickers = StockRef::query()->orderBy('ticker')->pluck('ticker');
+        // Scoping to a few tickers, as idx:backfill-price-history already
+        // allows: after fixing one emiten's data there is no reason to spend
+        // ~900 Yahoo requests re-fetching the rest of the exchange.
+        $only = $this->option('tickers');
+        $tickers = ! empty($only)
+            ? collect($only)->map(fn (string $t) => StockRef::normalizeTicker($t))
+            : StockRef::query()->orderBy('ticker')->pluck('ticker');
+
         $bar = $this->output->createProgressBar($tickers->count());
         $bar->start();
 
@@ -40,7 +79,7 @@ class UpdateMarketData extends Command
         $skipped = 0;
 
         foreach ($tickers as $ticker) {
-            $chart = $this->marketData->dailyChart($ticker, '6mo', '1d');
+            $chart = $this->tradedBarsOnly($this->marketData->dailyChart($ticker, '6mo', '1d'));
             $closes = $chart['close'] ?? [];
 
             if (count($closes) <= 30) {
