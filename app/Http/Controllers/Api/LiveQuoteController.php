@@ -94,6 +94,9 @@ class LiveQuoteController extends Controller
             'change_line' => $change === null
                 ? 'Perubahan harian belum tersedia'
                 : ($change > 0 ? '+' : '').number_format($change).' ('.number_format((float) $changePct, 2).'%)',
+            // Why there is no change, so the tooltip stays as informative
+            // after a poll as it was when Blade rendered it.
+            'change_issue' => $price->dailyChangeIssue(),
             // Colour classes are resolved here, not in the browser, for the
             // same reason the numbers are: the thresholds and the palette have
             // one definition in App\Support\Format, and a second copy in

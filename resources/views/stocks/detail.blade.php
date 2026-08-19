@@ -44,7 +44,11 @@
                 $changeColor = \App\Support\Format::changeTextClass($changePct);
             @endphp
             <div data-quote="price-line" data-swap-class="{{ $changeColor }}" class="text-2xl font-extrabold {{ $changeColor }}">Rp <span data-quote="price">{{ number_format($close) }}</span></div>
-            <div data-quote="change-line-wrap" data-swap-class="{{ $changeColor }}" class="text-xs font-bold {{ $changeColor }}"><span data-quote="change-line">{{ $change === null
+            {{-- When there is no change to show, the tooltip says which of the
+                 several possible reasons it is and which command fixes it. A
+                 bare dash left nobody — reader or operator — any wiser. --}}
+            <div data-quote="change-line-wrap" data-swap-class="{{ $changeColor }}" class="text-xs font-bold {{ $changeColor }}"
+                 @if ($change === null) title="{{ $price->dailyChangeIssue() }}" @endif><span data-quote="change-line">{{ $change === null
                 ? 'Perubahan harian belum tersedia'
                 : ($change > 0 ? '+' : '').number_format($change).' ('.number_format($changePct, 2).'%)' }}</span></div>
         </div>

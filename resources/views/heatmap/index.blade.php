@@ -35,12 +35,21 @@
 <script>
 var rawData = @json($treemap);
 
+// null is not zero. A tile whose daily change could not be established — no
+// baseline, or one too old or on the wrong basis to trust — used to arrive
+// here as 0.0 and be painted green at "+0%". Slate says "not known", which is
+// the truth, and is distinct from the neutral used for a genuinely flat day.
 function getColor(val) {
+    if (val === null || val === undefined) return '#334155';
     if (val >= 3) return '#15803d';
     if (val >= 0.1) return '#22c55e';
     if (val <= -3) return '#b91c1c';
     if (val <= -0.1) return '#ef4444';
     return '#475569';
+}
+
+function changeLabel(val) {
+    return val === null || val === undefined ? 'n/a' : val + '%';
 }
 
 // The treemap's own chrome — the gaps between tiles and the sector header
@@ -64,7 +73,16 @@ var el = document.getElementById('heatmapChart');
 // dynamic import and every other page never downloads it. The promise also
 // covers the module-deferral problem: `echarts` did not exist at parse time
 // once it stopped arriving from a blocking CDN tag.
-if (el) window.loadECharts().then(function (echarts) {
+// Deferred until DOMContentLoaded because window.loadECharts is defined by
+// the bundle, and the bundle is loaded as a module: modules are deferred, so
+// this inline classic script used to run first and the treemap threw
+// "loadECharts is not a function" without drawing anything. Deferred scripts
+// execute before DOMContentLoaded fires, so by here the bundle has run.
+//
+// (Do not name the Blade directive that emits that tag anywhere in this file,
+// even inside a JavaScript comment — Blade compiles directives wherever they
+// appear, including in here, and calls it with no arguments.)
+if (el) document.addEventListener('DOMContentLoaded', function () { window.loadECharts().then(function (echarts) {
     var chart = echarts.init(el);
     var formatted = rawData.map(sector => ({
         name: sector.name,
@@ -80,14 +98,17 @@ if (el) window.loadECharts().then(function (echarts) {
                 if (!val || val.length < 3) return '';
                 const mcap = val[3] > 0 ? (val[3] / 1e12).toFixed(1) + ' T' : '-';
                 const price = new Intl.NumberFormat('id-ID').format(val[2]);
-                const sign = val[1] >= 0 ? '+' : '';
-                return `<div style="font-family:sans-serif;padding:4px;"><div style="font-weight:bold;font-size:14px;">${info.name}</div><div style="font-size:12px;">Rp ${price}</div><div style="font-weight:800;font-size:14px;color:${val[1]>=0?'#059669':'#dc2626'}">${sign}${val[1]}%</div><div style="font-size:10px;color:#888;margin-top:4px;">MCap: ${mcap}</div></div>`;
+                const unknown = val[1] === null || val[1] === undefined;
+                const sign = unknown || val[1] < 0 ? '' : '+';
+                const colour = unknown ? '#94a3b8' : (val[1] >= 0 ? '#059669' : '#dc2626');
+                const change = unknown ? 'perubahan harian tidak tersedia' : `${sign}${val[1]}%`;
+                return `<div style="font-family:sans-serif;padding:4px;"><div style="font-weight:bold;font-size:14px;">${info.name}</div><div style="font-size:12px;">Rp ${price}</div><div style="font-weight:800;font-size:14px;color:${colour}">${change}</div><div style="font-size:10px;color:#888;margin-top:4px;">MCap: ${mcap}</div></div>`;
             },
         },
         series: [{
             type: 'treemap', data: formatted, width: '100%', height: '100%',
             roam: 'move', nodeClick: false, breadcrumb: { show: false },
-            label: { show: true, formatter: (p) => p.name + '\n' + p.data.value[1] + '%', fontSize: 11, fontWeight: 'bold', color: '#fff' },
+            label: { show: true, formatter: (p) => p.name + '\n' + changeLabel(p.data.value[1]), fontSize: 11, fontWeight: 'bold', color: '#fff' },
             itemStyle: { borderColor: chrome.gap, borderWidth: 1, gapWidth: 1 },
             levels: [
                 { itemStyle: { borderWidth: 0, gapWidth: 1 } },
@@ -115,7 +136,7 @@ if (el) window.loadECharts().then(function (echarts) {
         });
     });
     chart.on('click', (params) => { if (params.data?.name) window.location.href = `/stocks/${params.data.name}`; });
-});
+}); });
 </script>
 @endpush
 @endsection

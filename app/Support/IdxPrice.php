@@ -31,6 +31,32 @@ final class IdxPrice
     }
 
     /**
+     * The exchange's auto-rejection band for a price level, in percent.
+     *
+     * IDX refuses orders more than this far from the previous close, so a
+     * single session's move cannot exceed it. That makes it a validity test
+     * rather than a trading rule: a computed daily change well beyond this
+     * band is not a big day, it is a baseline and a price that are not
+     * describing the same instrument — history adjusted for a stock split
+     * while the live quote is not, most often.
+     *
+     * The percentages are the exchange's own and it does revise them (they
+     * were asymmetric before 2023), so they are config-overridable. Nothing
+     * here depends on them being exactly current: they are used with generous
+     * headroom, to catch the impossible rather than the merely unusual.
+     */
+    public static function autoRejectionPct(float $price): float
+    {
+        $bands = config('screener.auto_rejection_bands');
+
+        return match (true) {
+            $price < 200 => (float) $bands['under_200'],
+            $price < 5_000 => (float) $bands['under_5000'],
+            default => (float) $bands['above_5000'],
+        };
+    }
+
+    /**
      * Nearest tradeable price at or below $price.
      *
      * Used for levels where paying less is the safer error: a buy limit, and

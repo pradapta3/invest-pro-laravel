@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\IdxPrice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +28,7 @@ class StockPrice extends Model
         'low_price',
         'close_price',
         'prev_close',
+        'prev_close_date',
         'volume',
         'ma20',
         'rsi_14',
@@ -51,6 +53,7 @@ class StockPrice extends Model
             'low_price' => 'decimal:2',
             'close_price' => 'decimal:2',
             'prev_close' => 'decimal:2',
+            'prev_close_date' => 'date',
             'volume' => 'integer',
             'ma20' => 'decimal:2',
             'rsi_14' => 'decimal:2',
@@ -103,24 +106,76 @@ class StockPrice extends Model
      * What today's move is measured against: the previous close, which is what
      * IDX, every broker screen and every quote site mean by "change".
      *
-     * Falls back to today's open when no previous close has been stored —
-     * that is the intraday move rather than the daily one, but it is a real
-     * number for today and the alternative is a dash on most of the board
-     * until the first end-of-day run lands. The heatmap already made this
-     * choice; the point of putting it here is that everywhere now makes the
-     * same one.
+     * Returns null rather than guessing. It used to fall back to open_price,
+     * on the reasoning that the intraday move is at least a real number for
+     * today — but it is neither. open_price is written only by the nightly
+     * end-of-day refresh, so during a session it holds the *previous* day's
+     * open; and measuring from the open is exactly the mistake this method
+     * exists to stop, because it discards the overnight gap. An emiten that
+     * gaps down and recovers a little is deeply red for the day and shows
+     * close > open, so the fallback painted green precisely on the rows where
+     * being wrong mattered most. A dash is worse than a number only when the
+     * number is right.
      */
     public function dailyChangeBase(): ?float
     {
         $prevClose = (float) $this->prev_close;
 
-        if ($prevClose > 0) {
-            return $prevClose;
+        return $prevClose > 0 && ! $this->baselineIsStale() ? $prevClose : null;
+    }
+
+    /**
+     * Whether the stored baseline belongs to a session too far back to call
+     * its difference from today's price "today's change".
+     *
+     * The baseline used to be a bare number with no provenance, which is the
+     * root of this bug in all three of its appearances: one left over from an
+     * earlier session looks exactly like a correct one, so a two- or
+     * three-day move gets presented as the day's. prev_close_date fixes that
+     * by recording which session the figure closed.
+     *
+     * A null date means the row predates that column, and is treated as
+     * usable — the alternative is blanking every board on the first deploy
+     * until a scheduled refresh lands. The refreshes fill it in within
+     * minutes, after which this check has teeth.
+     */
+    public function baselineIsStale(): bool
+    {
+        if ($this->prev_close_date === null) {
+            return false;
         }
 
-        $open = (float) $this->open_price;
+        // Against the price's own timestamp, not against now: after Friday's
+        // close a Thursday baseline is still the correct one for the Friday
+        // price sitting beside it, and stays correct all weekend.
+        $priceAt = $this->updated_at ?? now();
 
-        return $open > 0 ? $open : null;
+        return $this->prev_close_date->diffInDays($priceAt) > config('screener.baseline_max_age_days');
+    }
+
+    /**
+     * Whether the day's move is one the exchange could actually have allowed.
+     *
+     * IDX auto-rejects orders beyond a band around the previous close, so a
+     * change well past that band is not a violent day — it is a baseline and
+     * a price that are not on the same basis. A stock split is the usual
+     * cause: the history feed adjusts for it and the live quote does not, so
+     * a Rp20,000 price gets measured against a Rp2,000 baseline and the app
+     * reports a 900% gain with total confidence.
+     */
+    public function dailyChangeIsPlausible(): bool
+    {
+        $base = (float) $this->prev_close;
+        $close = (float) $this->close_price;
+
+        if ($base <= 0 || $close <= 0) {
+            return false;
+        }
+
+        $movePct = abs(($close - $base) / $base) * 100;
+        $limit = IdxPrice::autoRejectionPct($base) * config('screener.change_tolerance');
+
+        return $movePct <= $limit;
     }
 
     /**
@@ -139,7 +194,44 @@ class StockPrice extends Model
     {
         $base = $this->dailyChangeBase();
 
-        return $base === null ? null : (float) $this->close_price - $base;
+        if ($base === null || ! $this->dailyChangeIsPlausible()) {
+            return null;
+        }
+
+        return (float) $this->close_price - $base;
+    }
+
+    /**
+     * Why there is no daily change to show, in words, or null when there is.
+     *
+     * A dash with no explanation is its own kind of unhelpful — the reader
+     * cannot tell a stock nobody has quoted yet from one whose baseline is
+     * three sessions old, and neither can whoever has to fix it. Each of
+     * these names the command that repairs it.
+     */
+    public function dailyChangeIssue(): ?string
+    {
+        if ((float) $this->prev_close <= 0) {
+            return 'Belum ada harga penutupan sebelumnya untuk pembanding. Jalankan idx:update-realtime-quotes, atau idx:backfill-price-history bila emiten ini belum punya riwayat.';
+        }
+
+        if ($this->baselineIsStale()) {
+            return sprintf(
+                'Pembanding masih dari sesi %s — terlalu lama untuk disebut perubahan hari ini. Periksa scheduler dan jalankan idx:quote-check %s.',
+                $this->prev_close_date->translatedFormat('d M Y'),
+                str_replace('.JK', '', $this->ticker),
+            );
+        }
+
+        if (! $this->dailyChangeIsPlausible()) {
+            return sprintf(
+                'Selisih terhadap penutupan sebelumnya (%s) melebihi batas auto rejection bursa — hampir pasti harga dan pembandingnya beda basis, misalnya stock split yang belum disesuaikan. Jalankan idx:quote-check %s.',
+                number_format((float) $this->prev_close),
+                str_replace('.JK', '', $this->ticker),
+            );
+        }
+
+        return null;
     }
 
     public function dailyChangePct(): ?float

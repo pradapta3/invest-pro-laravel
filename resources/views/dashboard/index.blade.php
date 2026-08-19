@@ -81,9 +81,12 @@
                                  down at all. --}}
                             <div data-quote="price-line"
                                  data-swap-class="{{ \App\Support\Format::changeTextClass($changePct) }}"
-                                 class="font-bold text-xs mt-1 {{ \App\Support\Format::changeTextClass($changePct) }}">
+                                 class="font-bold text-xs mt-1 {{ \App\Support\Format::changeTextClass($changePct) }}"
+                                 @if ($changePct === null) title="{{ $stock->dailyChangeIssue() }}" @endif>
                                 Rp <span data-quote="price">{{ number_format($stock->close_price) }}</span>
-                                <span class="font-normal" data-quote="change">{{ $changePct === null ? '' : '('.($changePct > 0 ? '+' : '').number_format($changePct, 2).'%)' }}</span>
+                                {{-- "n/a" rather than nothing: a price with no percentage
+                                     beside it reads as unchanged, which is a claim. --}}
+                                <span class="font-normal" data-quote="change">{{ $changePct === null ? '(n/a)' : '('.($changePct > 0 ? '+' : '').number_format($changePct, 2).'%)' }}</span>
                             </div>
                         </td>
                         <td class="px-2 py-3 text-xs">
