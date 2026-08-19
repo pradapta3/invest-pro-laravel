@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\StockPrice;
+use App\Models\StockPriceHistory;
 use App\Models\StockRef;
 use App\Services\MarketData\MarketDataService;
 use Illuminate\Console\Command;
@@ -54,10 +55,18 @@ class UpdateRealtimeQuotes extends Command
         // scan brought no previous_close can keep the one it already had
         // without a query per ticker to look it up.
         $storedPrevClose = StockPrice::query()->pluck('prev_close', 'ticker');
+        // The app's own record of what each session actually closed at, which
+        // is what a missing previous_close should fall back to. Keeping the
+        // stored number instead was the old behaviour and it is how the bug
+        // survived: on the second consecutive scan without a baseline, the
+        // "previous close" is two sessions old, and nothing about the stored
+        // value says so. This one is dated.
+        $lastSession = StockPriceHistory::lastCompletedSessions();
 
         $newRefs = [];
         $priceUpdates = [];
         $missingPrevClose = 0;
+        $missingHistory = 0;
         $now = now();
 
         foreach ($rows as $row) {
@@ -95,20 +104,38 @@ class UpdateRealtimeQuotes extends Command
             // session. A stock down on Tuesday but above Friday's close read
             // green.
             //
-            // Rows where TradingView gave no usable baseline keep the one
-            // already stored rather than taking a zero, which would render as
-            // a gain of the entire share price.
+            // Rows where TradingView gave no usable baseline fall back to the
+            // last completed session this app recorded for itself, and only
+            // then to whatever was already stored. Keeping the stored figure
+            // straight away — the old behaviour — is what let a baseline go on
+            // ageing silently for as many sessions as the scan kept omitting
+            // it.
+            $history = $lastSession[$ticker] ?? null;
+
+            [$prevClose, $prevCloseDate] = match (true) {
+                $row['prev_close'] !== null => [$row['prev_close'], $history['date'] ?? null],
+                $history !== null => [$history['close'], $history['date']],
+                default => [(float) $storedPrevClose[$ticker], null],
+            };
+
             $update = [
                 'ticker' => $ticker,
                 'close_price' => $row['close'],
                 'volume' => $row['volume'],
                 'vwap' => $row['vwap'],
                 'value_transaction' => $row['value_transaction'],
-                'prev_close' => $row['prev_close'] ?? (float) $storedPrevClose[$ticker],
+                'prev_close' => $prevClose,
+                // Which session that baseline closed, so a stale one can be
+                // recognised instead of quietly becoming a multi-day move.
+                'prev_close_date' => $prevCloseDate,
             ];
 
             if ($row['prev_close'] === null) {
                 $missingPrevClose++;
+
+                if ($history === null) {
+                    $missingHistory++;
+                }
             }
 
             $priceUpdates[$ticker] = $update;
@@ -131,7 +158,7 @@ class UpdateRealtimeQuotes extends Command
             StockPrice::query()->upsert(
                 $chunk,
                 ['ticker'],
-                ['close_price', 'volume', 'vwap', 'value_transaction', 'prev_close'],
+                ['close_price', 'volume', 'vwap', 'value_transaction', 'prev_close', 'prev_close_date'],
             );
         }
 
@@ -148,13 +175,24 @@ class UpdateRealtimeQuotes extends Command
         // avoid; if it is the whole exchange, TradingView has stopped serving
         // the column and the daily change is wrong everywhere until it returns.
         if ($missingPrevClose > 0) {
-            $message = "{$missingPrevClose} ticker(s) came back without a previous close; their stored baseline was kept.";
+            $repaired = $missingPrevClose - $missingHistory;
+            $message = "{$missingPrevClose} ticker(s) came back without a previous close; "
+                ."{$repaired} took a dated baseline from price history, {$missingHistory} kept the stored one.";
 
             $this->warn($message);
             Log::channel('market_data')->warning('Realtime scan missing previous_close', [
                 'tickers_affected' => $missingPrevClose,
+                'repaired_from_history' => $repaired,
+                'no_history_either' => $missingHistory,
                 'tickers_updated' => $updated,
             ]);
+
+            // These are the rows that can still show a wrong daily change: no
+            // baseline from the scan and none in history either, so the stored
+            // number stands with nothing to date it.
+            if ($missingHistory > 0) {
+                $this->warn("Run idx:backfill-price-history to give the remaining {$missingHistory} a dated baseline.");
+            }
 
             if ($missingPrevClose === $updated) {
                 $this->error('None of them had one — check that the scanner still returns the previous_close column.');

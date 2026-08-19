@@ -40,10 +40,26 @@ class QuoteCheck extends Command
         }
 
         $this->components->info("Stored row for {$ticker}");
-        $this->line(sprintf('  close_price   %s', number_format((float) $price->close_price, 2)));
-        $this->line(sprintf('  prev_close    %s', number_format((float) $price->prev_close, 2)));
-        $this->line(sprintf('  open_price    %s', number_format((float) $price->open_price, 2)));
-        $this->line(sprintf('  updated_at    %s', $price->updated_at?->format('D d M Y H:i') ?? '(never)'));
+        $this->line(sprintf('  close_price      %s', number_format((float) $price->close_price, 2)));
+        $this->line(sprintf('  prev_close       %s', number_format((float) $price->prev_close, 2)));
+        $this->line(sprintf(
+            '  prev_close_date  %s',
+            $price->prev_close_date?->format('D d M Y') ?? '<fg=yellow>(none — baseline has no provenance)</>',
+        ));
+        $this->line(sprintf('  open_price       %s', number_format((float) $price->open_price, 2)));
+        $this->line(sprintf('  updated_at       %s', $price->updated_at?->format('D d M Y H:i') ?? '(never)'));
+
+        // The row can be perfectly consistent and still be yesterday's: if
+        // this ticker dropped out of the scan, both figures are last
+        // session's and the change shown is last session's change.
+        if ($price->updated_at !== null && \App\Support\MarketClock::isStale($price->updated_at)) {
+            $this->newLine();
+            $this->components->warn(sprintf(
+                'This row has not been written since %s while the market is open — it is missing from the scan.',
+                $price->updated_at->format('D d M Y H:i'),
+            ));
+            $this->line('  <fg=gray>Its "today\'s change" is really the previous session\'s.</>');
+        }
 
         $change = $price->dailyChange();
         $pct = $price->dailyChangePct();
@@ -52,7 +68,8 @@ class QuoteCheck extends Command
         $this->components->info('What the app shows');
 
         if ($change === null) {
-            $this->components->warn('  No baseline at all — rendered grey with no percentage.');
+            $this->components->warn('  Rendered grey, with no percentage. Reason:');
+            $this->line('  <fg=gray>'.$price->dailyChangeIssue().'</>');
         } else {
             $this->line(sprintf(
                 '  %s%s (%s%%)  -> %s',
@@ -62,8 +79,18 @@ class QuoteCheck extends Command
                 $change > 0 ? 'GREEN' : ($change < 0 ? 'RED' : 'grey (flat)'),
             ));
             $this->line(sprintf(
-                '  measured against %s',
-                (float) $price->prev_close > 0 ? 'prev_close' : 'open_price (no prev_close stored)',
+                '  measured against prev_close from %s',
+                $price->prev_close_date?->format('D d M Y') ?? 'an unknown session',
+            ));
+
+            // Names the ceiling as well as the verdict, so a move that only
+            // just passes is visible as such rather than looking endorsed.
+            $band = \App\Support\IdxPrice::autoRejectionPct((float) $price->prev_close);
+            $this->line(sprintf(
+                '  move is %s%% against an auto-rejection band of %s%% (tolerance x%s)',
+                round(abs($pct), 2),
+                $band,
+                config('screener.change_tolerance'),
             ));
         }
 
@@ -96,6 +123,16 @@ class QuoteCheck extends Command
                     number_format($lastCompleted, 2),
                 ));
                 $this->line('  <fg=gray>If close_price is today and this is not yesterday, the change spans more than one day.</>');
+                $this->line('  <fg=gray>idx:update-realtime-quotes now repairs this from history on its next run.</>');
+
+                $wouldBe = (float) $price->close_price - $lastCompleted;
+                $this->line(sprintf(
+                    '  <fg=gray>Against history it would read %s%s (%s%%) -> %s</>',
+                    $wouldBe > 0 ? '+' : '',
+                    number_format($wouldBe, 2),
+                    round($wouldBe / $lastCompleted * 100, 2),
+                    $wouldBe > 0 ? 'GREEN' : ($wouldBe < 0 ? 'RED' : 'flat'),
+                ));
             }
         }
 

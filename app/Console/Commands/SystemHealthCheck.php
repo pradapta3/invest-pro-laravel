@@ -37,6 +37,7 @@ class SystemHealthCheck extends Command
         $checks = [
             'Database connection' => fn (): bool => $this->checkDatabase(),
             'stock_prices has history_json data' => fn (): bool => $this->checkHistoryData(),
+            'Daily-change baselines are usable' => fn (): bool => $this->checkBaselines(),
             'Yahoo Finance crumb/cookie auth' => fn (): bool => $this->checkYahooCrumb(),
             'Gemini API key' => fn (): bool => $this->checkGemini(),
             'Telegram bot token' => fn (): bool => $this->checkTelegram(),
@@ -61,6 +62,70 @@ class SystemHealthCheck extends Command
         }
 
         return $failed ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * How much of the board can state a daily change at all.
+     *
+     * The app now refuses to show a change it cannot stand behind — no
+     * baseline, one too old, or one on a different price basis all render as
+     * n/a rather than as a number with a confident colour. That is the right
+     * behaviour and it makes this the question worth asking: if a large share
+     * of the exchange is grey, the feeds are not delivering, and this says
+     * which one.
+     */
+    private function checkBaselines(): bool
+    {
+        $total = StockPrice::query()->count();
+
+        if ($total === 0) {
+            $this->notes[] = 'No stock_prices rows at all — run idx:update-market-data.';
+
+            return false;
+        }
+
+        $missing = StockPrice::query()->where('prev_close', '<=', 0)->count();
+        $undated = StockPrice::query()->where('prev_close', '>', 0)->whereNull('prev_close_date')->count();
+
+        // Staleness and plausibility are per-row rules rather than columns, so
+        // they are counted in PHP over the rows that have a baseline at all.
+        $stale = 0;
+        $implausible = 0;
+
+        StockPrice::query()->where('prev_close', '>', 0)->chunkById(500, function ($rows) use (&$stale, &$implausible) {
+            foreach ($rows as $row) {
+                if ($row->baselineIsStale()) {
+                    $stale++;
+                } elseif (! $row->dailyChangeIsPlausible()) {
+                    $implausible++;
+                }
+            }
+        }, 'ticker');
+
+        $unusable = $missing + $stale + $implausible;
+        $pct = round($unusable / $total * 100, 1);
+
+        $this->notes[] = sprintf('%d of %d rows (%s%%) cannot show a daily change.', $unusable, $total, $pct);
+
+        if ($missing > 0) {
+            $this->notes[] = "{$missing} have no previous close stored — idx:update-realtime-quotes, then idx:backfill-price-history for any that remain.";
+        }
+
+        if ($stale > 0) {
+            $this->notes[] = "{$stale} have a baseline older than ".config('screener.baseline_max_age_days').' days — the scheduler is not running, or the scan has stopped returning previous_close.';
+        }
+
+        if ($implausible > 0) {
+            $this->notes[] = "{$implausible} move further than the exchange allows against their baseline — almost certainly an unadjusted corporate action. idx:quote-check <ticker> names them.";
+        }
+
+        if ($undated > 0) {
+            $this->notes[] = "{$undated} have a baseline with no session date (written before this column existed); they are trusted until a refresh dates them.";
+        }
+
+        // A tenth of the board is a feed problem worth failing on; a handful
+        // is a delisted ticker or a fresh listing and always will be.
+        return $pct < 10;
     }
 
     private function checkDatabase(): bool

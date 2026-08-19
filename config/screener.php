@@ -75,6 +75,41 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Daily-change sanity limits
+    |--------------------------------------------------------------------------
+    |
+    | IDX auto-rejects orders more than this far from the previous close, so a
+    | session's move cannot exceed the band for its price tier. App\Support\
+    | IdxPrice reads these to tell an impossible daily change — a baseline and
+    | a price on different bases, usually an unadjusted stock split — from a
+    | merely large one.
+    |
+    | change_tolerance multiplies the band before anything is rejected. The
+    | point is to catch the impossible without ever blanking a real limit-down
+    | day or the first session after a corporate action, when the exchange
+    | resets the reference price and the band with it.
+    |
+    */
+
+    'auto_rejection_bands' => [
+        'under_200' => (float) env('IDX_ARB_UNDER_200', 35),
+        'under_5000' => (float) env('IDX_ARB_UNDER_5000', 25),
+        'above_5000' => (float) env('IDX_ARB_ABOVE_5000', 20),
+    ],
+
+    'change_tolerance' => (float) env('IDX_CHANGE_TOLERANCE', 1.5),
+
+    /*
+    | How many sessions old a baseline may be before the change it produces
+    | stops being "today's". 1 means it must be the previous trading day;
+    | 3 leaves room for a long weekend or a public holiday, which this app has
+    | no calendar for.
+    */
+
+    'baseline_max_age_days' => (int) env('IDX_BASELINE_MAX_AGE_DAYS', 4),
+
+    /*
+    |--------------------------------------------------------------------------
     | Backtest universe
     |--------------------------------------------------------------------------
     |

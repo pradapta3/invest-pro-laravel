@@ -57,6 +57,13 @@ class UpdateMarketData extends Command
 
             $lastClose = end($closes);
             $prevClose = $closes[count($closes) - 2];
+            // The session that baseline closed, carried through so the daily
+            // change can be checked rather than trusted. Without it a baseline
+            // that stops advancing is indistinguishable from a correct one,
+            // and the change silently becomes a multi-day move.
+            $prevCloseDate = isset($chart['timestamps'][count($closes) - 2])
+                ? date('Y-m-d', $chart['timestamps'][count($closes) - 2])
+                : null;
             $ma20 = $this->ta->sma($closes, 20);
             $macd = $this->ta->macd($closes);
             $stoch = $this->ta->stochastic($closes, $highs, $lows);
@@ -72,6 +79,7 @@ class UpdateMarketData extends Command
                     'low_price' => end($lows),
                     'close_price' => $lastClose,
                     'prev_close' => $prevClose,
+                    'prev_close_date' => $prevCloseDate,
                     'volume' => end($volumes),
                     'ma20' => $ma20,
                     'rsi_14' => $this->ta->rsi($closes),

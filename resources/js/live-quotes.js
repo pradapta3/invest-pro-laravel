@@ -58,7 +58,7 @@ function swapClasses(el, next) {
 
 function applyQuote(row, quote) {
     setText(row, 'price', quote.price);
-    setText(row, 'change', quote.change_pct ? `(${quote.change_pct})` : '');
+    setText(row, 'change', quote.change_pct ? `(${quote.change_pct})` : '(n/a)');
     setText(row, 'entry', quote.entry);
     setText(row, 'tp', quote.take_profit);
     setText(row, 'tp-pct', quote.take_profit_pct);
@@ -72,6 +72,20 @@ function applyQuote(row, quote) {
     swapClasses(row.querySelector('[data-quote="price-line"]'), quote.change_class);
     swapClasses(row.querySelector('[data-quote="change-line-wrap"]'), quote.change_class);
     swapClasses(row.querySelector('[data-quote="verdict-circle"]'), quote.verdict_class);
+
+    // The explanation for a missing percentage belongs to whichever element
+    // carries it on this page, and has to leave again once there is a real
+    // number to show.
+    ['price-line', 'change-line-wrap'].forEach((field) => {
+        const el = row.querySelector(`[data-quote="${field}"]`);
+        if (!el) return;
+
+        if (quote.change_issue) {
+            el.title = quote.change_issue;
+        } else {
+            el.removeAttribute('title');
+        }
+    });
 
     const flow = row.querySelector('[data-quote="flow"]');
     if (flow) {

@@ -226,7 +226,13 @@ class StockScreenerService
             // This was the only surface computing the change correctly, and it
             // did it inline; the rule lives on the model now so the dashboard,
             // the detail page and the ticker tape cannot drift from it again.
-            $changePct = $row->dailyChangePct() ?? 0.0;
+            //
+            // null travels as null rather than becoming 0.0. Coerced, an
+            // unknown change was drawn as a green "+0%" tile — the same
+            // unknown-presented-as-fact this whole area keeps producing. The
+            // treemap paints null grey and labels it n/a.
+            $changePct = $row->dailyChangePct();
+            $changePct = $changePct === null ? null : round($changePct, 2);
 
             $sizeMetric = $hasMarketCapData ? $marketCap : $valueTransaction;
             $minSize = $hasMarketCapData ? $cfg['min_market_cap'] : $cfg['min_transaction_value'];
@@ -237,7 +243,7 @@ class StockScreenerService
 
             $bySector[$sector][] = [
                 'name' => $row->stockRef->cleanTicker(),
-                'value' => [$sizeMetric, round($changePct, 2), $close, $marketCap],
+                'value' => [$sizeMetric, $changePct, $close, $marketCap],
             ];
         }
 
